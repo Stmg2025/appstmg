@@ -82,7 +82,7 @@ const Login = () => {
 
                 // Redireccionar después de una pequeña pausa para que el usuario vea la notificación
                 setTimeout(() => {
-                    navigate('/usuarios');
+                    navigate('/');
                 }, 1000);
             } else {
                 // Notificación de error

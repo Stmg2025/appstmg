@@ -3,8 +3,9 @@ import { AuthProvider } from './context/AuthContext';
 import AppLayout from './components/Layout';
 import Home from './pages/Home';
 import Usuarios from './pages/Usuarios';
+import Solicitudes from './pages/Solicitudes'; // ✅ Nueva página de solicitudes
 import Login from './pages/Login';
-import ProfilePage from './pages/ProfilePage'; // Importamos la nueva página de perfil
+import ProfilePage from './pages/ProfilePage';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 const App = () => {
@@ -20,7 +21,8 @@ const App = () => {
             <Route element={<AppLayout />}>
               <Route index element={<Home />} />
               <Route path="usuarios" element={<Usuarios />} />
-              <Route path="profile" element={<ProfilePage />} /> {/* Nueva ruta para el perfil */}
+              <Route path="solicitudes" element={<Solicitudes />} /> {/* ✅ Nueva ruta */}
+              <Route path="profile" element={<ProfilePage />} />
             </Route>
           </Route>
         </Routes>

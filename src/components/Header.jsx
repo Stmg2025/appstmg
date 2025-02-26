@@ -1,6 +1,5 @@
-// src/components/AppHeader.jsx
 import { useContext } from 'react';
-import { Layout, Menu, Button, Typography, Dropdown } from 'antd';
+import { Layout, Menu, Dropdown, Typography } from 'antd';
 import { LogoutOutlined, UserOutlined, SettingOutlined } from '@ant-design/icons';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
@@ -18,6 +17,9 @@ const AppHeader = () => {
         logout();
         navigate('/login');
     };
+
+    // Obtener el cargo del usuario y asegurarse de que no tenga espacios extra
+    const cargoUsuario = user?.user?.cargo ? user.user.cargo.trim() : '';
 
     // Opciones para el menú desplegable del usuario
     const items = [
@@ -83,8 +85,17 @@ const AppHeader = () => {
                     <Menu.Item key="/" style={location.pathname === '/' ? { backgroundColor: '#ff0000' } : {}}>
                         <Link to="/" style={{ color: '#ffffff' }}>Inicio</Link>
                     </Menu.Item>
-                    <Menu.Item key="/usuarios" style={location.pathname === '/usuarios' ? { backgroundColor: '#ff0000' } : {}}>
-                        <Link to="/usuarios" style={{ color: '#ffffff' }}>Usuarios</Link>
+
+                    {/* Mostrar "Usuarios" solo si el cargo NO es "Técnico" */}
+                    {cargoUsuario !== 'Técnico' && (
+                        <Menu.Item key="/usuarios" style={location.pathname === '/usuarios' ? { backgroundColor: '#ff0000' } : {}}>
+                            <Link to="/usuarios" style={{ color: '#ffffff' }}>Usuarios</Link>
+                        </Menu.Item>
+                    )}
+
+                    {/* Mostrar la opción "Solicitudes" para TODOS los usuarios */}
+                    <Menu.Item key="/solicitudes" style={location.pathname === '/solicitudes' ? { backgroundColor: '#ff0000' } : {}}>
+                        <Link to="/solicitudes" style={{ color: '#ffffff' }}>Solicitudes</Link>
                     </Menu.Item>
                 </Menu>
             )}
