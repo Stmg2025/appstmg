@@ -1,0 +1,45 @@
+/* Estilos generales */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: #f0f2f5;
+}
+
+/* Estilo para el contenido principal */
+.site-layout-content {
+  min-height: 280px;
+  padding: 24px;
+  background: #fff;
+}
+
+/* Estilos para los botones de tipo "danger" */
+.ant-btn-danger {
+  background-color: #ff4d4f;
+  border-color: #ff4d4f;
+  color: #fff;
+}
+
+.ant-btn-danger:hover {
+  background-color: #ff7875;
+  border-color: #ff7875;
+  color: #fff;
+}
+
+/* Estilos para las tablas */
+.ant-table-thead>tr>th {
+  background-color: #f7f7f7;
+  font-weight: bold;
+}
+
+/* Ajustes para formularios */
+.ant-form-item-label>label {
+  font-weight: 500;
+}
+
+/* Estilos para las descripciones en vista detalle */
+.ant-descriptions-bordered .ant-descriptions-item-label {
+  width: 30%;
+  background-color: #f7f7f7;
+  font-weight: 500;
+}
