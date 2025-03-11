@@ -11,14 +11,24 @@ const inventoryService = {
         return await api.get(`/inventory/${id}`);
     },
 
-    // Crear un nuevo elemento en el inventario
+    // Crear un nuevo elemento en el inventario con soporte para archivos
     createInventoryItem: async (itemData) => {
-        return await api.post('/inventory', itemData);
+        // Verificar si estamos recibiendo FormData (para imágenes) o datos regulares
+        const headers = itemData instanceof FormData ?
+            { 'Content-Type': 'multipart/form-data' } :
+            {};
+
+        return await api.post('/inventory', itemData, { headers });
     },
 
-    // Actualizar un elemento existente en el inventario
+    // Actualizar un elemento existente en el inventario con soporte para archivos
     updateInventoryItem: async (id, itemData) => {
-        return await api.put(`/inventory/${id}`, itemData);
+        // Verificar si estamos recibiendo FormData (para imágenes) o datos regulares
+        const headers = itemData instanceof FormData ?
+            { 'Content-Type': 'multipart/form-data' } :
+            {};
+
+        return await api.put(`/inventory/${id}`, itemData, { headers });
     },
 
     // Eliminar un elemento del inventario

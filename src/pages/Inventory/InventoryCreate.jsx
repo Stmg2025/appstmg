@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, InputNumber, Typography, message } from 'antd';
+import { Form, Input, Button, InputNumber, Typography, message, Upload } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import { UploadOutlined } from '@ant-design/icons';
 import inventoryService from '../../services/inventoryService';
 
 const { Title } = Typography;
@@ -8,12 +9,32 @@ const { Title } = Typography;
 const InventoryCreate = () => {
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
+    const [file, setFile] = useState(null);
     const navigate = useNavigate();
+
+    const handleFileChange = ({ file }) => {
+        setFile(file.originFileObj);
+    };
 
     const onFinish = async (values) => {
         try {
             setLoading(true);
-            const response = await inventoryService.createInventoryItem(values);
+
+            // Crear FormData para enviar datos y archivo
+            const formData = new FormData();
+            formData.append("codigo", values.codigo);
+            formData.append("descripcion", values.descripcion);
+            formData.append("ubicacion", values.ubicacion);
+            formData.append("valor", values.valor);
+            formData.append("costo", values.costo);
+            formData.append("stock", values.stock);
+
+            // Añadir imagen si existe
+            if (file) {
+                formData.append("imagen", file);
+            }
+
+            const response = await inventoryService.createInventoryItem(formData);
 
             if (response.data.success) {
                 message.success('Item agregado exitosamente');
@@ -38,6 +59,7 @@ const InventoryCreate = () => {
                 layout="vertical"
                 onFinish={onFinish}
                 style={{ maxWidth: 600 }}
+                encType="multipart/form-data"
             >
                 <Form.Item
                     name="codigo"
@@ -104,6 +126,17 @@ const InventoryCreate = () => {
                         min={0}
                         placeholder="Cantidad disponible"
                     />
+                </Form.Item>
+
+                <Form.Item label="Imagen del Repuesto">
+                    <Upload
+                        beforeUpload={() => false}
+                        onChange={handleFileChange}
+                        showUploadList={false}
+                    >
+                        <Button icon={<UploadOutlined />}>Seleccionar Imagen</Button>
+                    </Upload>
+                    {file && <p>{file.name}</p>}
                 </Form.Item>
 
                 <Form.Item>
