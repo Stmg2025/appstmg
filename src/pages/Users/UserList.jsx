@@ -3,16 +3,53 @@ import { Table, Button, Space, message, Popconfirm, Typography } from 'antd';
 import { PlusOutlined, EditOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import userService from '../../services/userService';
+import roleService from '../../services/roleService';
 
 const { Title } = Typography;
 
 const UserList = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [roles, setRoles] = useState({});
+    const [loadingRoles, setLoadingRoles] = useState(false);
 
     useEffect(() => {
         fetchUsers();
+        fetchRoles();
     }, []);
+
+    const fetchRoles = async () => {
+        try {
+            setLoadingRoles(true);
+            const token = localStorage.getItem('token');
+
+            if (!token) {
+                throw new Error("No hay token disponible. Inicia sesión nuevamente.");
+            }
+
+            const response = await roleService.getRoles({
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            if (response.data.success) {
+                // Crear un objeto con id como clave y nombre como valor
+                const rolesMap = {};
+                response.data.roles.forEach(role => {
+                    rolesMap[role.id] = role.nombre;
+                });
+                setRoles(rolesMap);
+            } else {
+                throw new Error(response.data.message || "No se pudieron obtener los roles.");
+            }
+        } catch (error) {
+            console.error('Error al obtener roles:', error);
+            message.error("Error al cargar los roles");
+        } finally {
+            setLoadingRoles(false);
+        }
+    };
 
     const fetchUsers = async () => {
         try {
@@ -106,7 +143,12 @@ const UserList = () => {
             title: 'Rol',
             dataIndex: 'role_id',
             key: 'role_id',
-            sorter: (a, b) => a.role_id - b.role_id,
+            render: (role_id) => roles[role_id] || `ID: ${role_id}`,
+            sorter: (a, b) => {
+                const roleNameA = roles[a.role_id] || '';
+                const roleNameB = roles[b.role_id] || '';
+                return roleNameA.localeCompare(roleNameB);
+            },
         },
         {
             title: 'Estado',
@@ -161,7 +203,7 @@ const UserList = () => {
                 columns={columns}
                 dataSource={users}
                 rowKey="id"
-                loading={loading}
+                loading={loading || loadingRoles}
                 pagination={{ pageSize: 10 }}
             />
         </div>

@@ -24,6 +24,23 @@ import InventoryCreate from './pages/Inventory/InventoryCreate';
 import InventoryView from './pages/Inventory/InventoryView';
 import InventoryEdit from './pages/Inventory/InventoryEdit';
 
+// Solicitudes
+import SolicitudList from './pages/Solicitudes/SolicitudList';
+import SolicitudCreate from './pages/Solicitudes/SolicitudCreate';
+import SolicitudView from './pages/Solicitudes/SolicitudView';
+import SolicitudEdit from './pages/Solicitudes/SolicitudEdit';
+
+// Estado de Solicitud
+import EstadoSolicitudList from './pages/EstadoSolicitud/EstadoSolicitudList';
+import EstadoSolicitudCreate from './pages/EstadoSolicitud/EstadoSolicitudCreate';
+import EstadoSolicitudView from './pages/EstadoSolicitud/EstadoSolicitudView';
+import EstadoSolicitudEdit from './pages/EstadoSolicitud/EstadoSolicitudEdit';
+
+// Tecnicos
+import TecnicoList from './pages/Tecnicos/TecnicoList';
+import TecnicoView from './pages/Tecnicos/TecnicoView';
+import TecnicoEdit from './pages/Tecnicos/TecnicoEdit';
+
 // Dashboard
 import Dashboard from './pages/Dashboard/Dashboard';
 
@@ -203,6 +220,122 @@ const AppRoutes = () => {
                     <ProtectedRoute>
                         <MainLayout>
                             <InventoryEdit />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* Rutas protegidas de Solicitudes */}
+            <Route
+                path="/solicitudes"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <SolicitudList />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/solicitudes/create"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <SolicitudCreate />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/solicitudes/:id"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <SolicitudView />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/solicitudes/edit/:id"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <SolicitudEdit />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* Rutas protegidas de Estado de Solicitud */}
+            <Route
+                path="/estados-solicitud"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <EstadoSolicitudList />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/estados-solicitud/create"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <EstadoSolicitudCreate />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/estados-solicitud/:id"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <EstadoSolicitudView />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/estados-solicitud/edit/:id"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <EstadoSolicitudEdit />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* Rutas protegidas de Técnicos */}
+            <Route
+                path="/tecnicos"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <TecnicoList />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/tecnicos/:id"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <TecnicoView />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/tecnicos/edit/:id"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <TecnicoEdit />
                         </MainLayout>
                     </ProtectedRoute>
                 }

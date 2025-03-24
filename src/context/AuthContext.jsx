@@ -13,12 +13,13 @@ export const AuthProvider = ({ children }) => {
 
     // Función para obtener datos del usuario desde el backend
     const fetchUserData = async () => {
+        setLoading(true);
         try {
             console.log("🔍 Intentando obtener datos del usuario...");
             const response = await authService.getUserData();
             console.log("✅ Respuesta del servidor:", response.data);
 
-            if (response.data.success) {
+            if (response.data.success && response.data.user) {
                 setUser(response.data.user);
                 setIsAuthenticated(true);
             } else {
@@ -38,7 +39,6 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (token) {
-            setIsAuthenticated(true);
             fetchUserData(); // Llamar a la API para obtener datos del usuario
         } else {
             setIsAuthenticated(false);
@@ -48,15 +48,18 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = async (email, password) => {
+        setLoading(true);
         try {
-            setLoading(true);
             const response = await authService.login(email, password);
-            if (response.data.success) {
+            if (response.data.success && response.data.token) {
                 localStorage.setItem('token', response.data.token);
                 setIsAuthenticated(true);
                 message.success('Inicio de sesión exitoso');
                 await fetchUserData(); // Obtener datos después del login
                 return true;
+            } else {
+                message.error(response.data.message || 'Error al iniciar sesión.');
+                return false;
             }
         } catch (error) {
             console.error('❌ Error al iniciar sesión:', error);
