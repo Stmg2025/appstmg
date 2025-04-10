@@ -1,13 +1,77 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, message, Typography, Input, Card, Empty, Select, Row, Col, Tag } from 'antd';
-import { PlusOutlined, EditOutlined, EyeOutlined, SearchOutlined, ReloadOutlined, FilterOutlined } from '@ant-design/icons';
+import { Table, Button, Space, message, Typography, Input, Card, Empty, Select, Row, Col, Tag, Badge, Tooltip } from 'antd';
+import { PlusOutlined, EditOutlined, EyeOutlined, SearchOutlined, ReloadOutlined, FilterOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
+import moment from 'moment';
 import solicitudService from '../../services/solicitudService';
 import tecnicoService from '../../services/tecnicoService';
 import estadoSolicitudService from '../../services/estadoSolicitudService';
 
 const { Title } = Typography;
 const { Option } = Select;
+
+// Mapeo de regiones
+const REGIONES = {
+    '1': 'Primera Región (de Tarapacá)',
+    '2': 'Segunda Región (de Antofagasta)',
+    '3': 'Tercera Región (de Atacama)',
+    '4': 'Cuarta Región (de Coquimbo)',
+    '5': 'Quinta Región (de Valparaíso)',
+    '6': 'Sexta Región (del Libertador B.O higgins)',
+    '7': 'Séptima Región (del Maule)',
+    '8': 'Octava Región (del Bío-Bío)',
+    '9': 'Novena Región (de la Araucanía)',
+    '10': 'Décima Región (de los Lagos)',
+    '11': 'Undécima Región (de Aisén del General Ca)',
+    '12': 'Duodécima Región (de Magallanes y de la)',
+    '13': 'Región Metropolitana (de Santiago)',
+    '14': 'Decimocuarta Región de los Rios',
+    '15': 'Decimoquinta Región de Arica y Parinacota'
+};
+
+// Función para formatear RUT chileno
+const formatRut = (rut) => {
+    if (!rut) return 'N/A';
+
+    // Calcular dígito verificador
+    const calcularDV = (rutNum) => {
+        let suma = 0;
+        let multiplo = 2;
+
+        for (let i = rutNum.length - 1; i >= 0; i--) {
+            suma += parseInt(rutNum.charAt(i)) * multiplo;
+            multiplo = multiplo < 7 ? multiplo + 1 : 2;
+        }
+
+        let dvCalculado = 11 - (suma % 11);
+
+        if (dvCalculado === 11) return '0';
+        if (dvCalculado === 10) return 'K';
+
+        return dvCalculado.toString();
+    };
+
+    // Formatear RUT con puntos y guión
+    let rutFormateado = '';
+    const dv = calcularDV(rut);
+
+    for (let i = rut.length - 1; i >= 0; i--) {
+        rutFormateado = rut.charAt(i) + rutFormateado;
+        if ((rut.length - i) % 3 === 0 && i !== 0) {
+            rutFormateado = '.' + rutFormateado;
+        }
+    }
+
+    return rutFormateado + '-' + dv;
+};
+
+// Función para verificar si la garantía está activa (1 año desde la fecha de factura)
+const garantiaActiva = (fechaFactura) => {
+    if (!fechaFactura) return false;
+
+    const fechaLimite = moment(fechaFactura).add(1, 'year');
+    return moment().isBefore(fechaLimite);
+};
 
 const SolicitudList = () => {
     const [solicitudes, setSolicitudes] = useState([]);
@@ -43,10 +107,8 @@ const SolicitudList = () => {
                 setLoadingTecnicos(true);
                 const response = await tecnicoService.getTecnicos();
                 if (response?.data?.success && Array.isArray(response.data.tecnicos)) {
-                    // Lista completa de técnicos para el filtro
                     setTecnicosList(response.data.tecnicos);
 
-                    // Crear un objeto con id como clave y técnico como valor para búsqueda rápida
                     const tecnicosMap = {};
                     response.data.tecnicos.forEach(tecnico => {
                         if (tecnico && tecnico.id) {
@@ -77,13 +139,10 @@ const SolicitudList = () => {
             try {
                 setLoadingEstados(true);
                 const response = await estadoSolicitudService.getEstados();
-                console.log('Respuesta de estados:', response?.data);
 
                 if (response?.data?.success && Array.isArray(response.data.estados)) {
-                    // Lista completa de estados para el filtro
                     setEstadosList(response.data.estados);
 
-                    // Crear un objeto con id como clave y estado como valor para búsqueda rápida
                     const estadosMap = {};
                     response.data.estados.forEach(estado => {
                         if (estado && estado.id) {
@@ -152,32 +211,18 @@ const SolicitudList = () => {
             setSearching(true);
             setLoading(true);
 
-            // Parámetros de búsqueda
             const searchParams = {
                 searchText: searchText
             };
 
             // Añadir filtros de técnicos
-            if (filters.tecnicoId) {
-                searchParams.tecnicoId = filters.tecnicoId;
-            }
-
-            if (filters.asignacionTecnico) {
-                searchParams.asignacionTecnico = filters.asignacionTecnico;
-            }
-
-            if (filters.tipoTecnico) {
-                searchParams.tipoTecnico = filters.tipoTecnico;
-            }
+            if (filters.tecnicoId) searchParams.tecnicoId = filters.tecnicoId;
+            if (filters.asignacionTecnico) searchParams.asignacionTecnico = filters.asignacionTecnico;
+            if (filters.tipoTecnico) searchParams.tipoTecnico = filters.tipoTecnico;
 
             // Añadir filtros de estados
-            if (filters.estadoId) {
-                searchParams.estadoId = filters.estadoId;
-            }
-
-            if (filters.asignacionEstado) {
-                searchParams.asignacionEstado = filters.asignacionEstado;
-            }
+            if (filters.estadoId) searchParams.estadoId = filters.estadoId;
+            if (filters.asignacionEstado) searchParams.asignacionEstado = filters.asignacionEstado;
 
             const response = await solicitudService.searchSolicitudes(searchParams);
 
@@ -225,7 +270,6 @@ const SolicitudList = () => {
 
                 setSolicitudes(filteredResults);
 
-                // Actualizamos la paginación con los resultados de búsqueda
                 setPagination({
                     ...pagination,
                     current: 1,
@@ -294,10 +338,18 @@ const SolicitudList = () => {
         },
         {
             title: 'Cliente',
-            dataIndex: 'nomaux',
-            key: 'nomaux',
-            width: 150,
-            render: (text) => text || 'N/A',
+            key: 'cliente',
+            width: 200,
+            render: (record) => {
+                return (
+                    <div>
+                        <div>{record.nomaux || 'N/A'}</div>
+                        {record.codaux && (
+                            <small style={{ color: '#888' }}>RUT: {formatRut(record.codaux)}</small>
+                        )}
+                    </div>
+                );
+            },
             sorter: (a, b) => {
                 try {
                     return (a.nomaux || '').localeCompare(b.nomaux || '');
@@ -311,19 +363,34 @@ const SolicitudList = () => {
             dataIndex: 'desc_motivo',
             key: 'desc_motivo',
             ellipsis: true,
-            width: 300,
+            width: 250,
         },
         {
             title: 'Fecha',
-            dataIndex: 'fecha',
             key: 'fecha',
-            width: 100,
-            render: (fecha) => {
-                try {
-                    return fecha ? new Date(fecha).toLocaleDateString() : 'N/A';
-                } catch (error) {
-                    return 'Fecha inválida';
-                }
+            width: 120,
+            render: (record) => {
+                const hasFecha = record.fecha ? true : false;
+                const hasFactura = record.fecha_fact ? true : false;
+                const isGarantiaActiva = hasFactura ? garantiaActiva(record.fecha_fact) : false;
+
+                return (
+                    <div>
+                        <div>{hasFecha ? new Date(record.fecha).toLocaleDateString() : 'N/A'}</div>
+                        {hasFactura && (
+                            <Tooltip title={isGarantiaActiva ? "Garantía activa" : "Garantía vencida"}>
+                                <Badge
+                                    status={isGarantiaActiva ? "success" : "error"}
+                                    text={
+                                        <small style={{ color: '#888' }}>
+                                            Fact: {new Date(record.fecha_fact).toLocaleDateString()}
+                                        </small>
+                                    }
+                                />
+                            </Tooltip>
+                        )}
+                    </div>
+                );
             },
             sorter: (a, b) => {
                 try {
@@ -334,20 +401,40 @@ const SolicitudList = () => {
             },
         },
         {
+            title: 'Ubicación',
+            key: 'ubicacion',
+            width: 140,
+            render: (record) => {
+                const regionNombre = record.region ? REGIONES[record.region] || `Región ${record.region}` : 'N/A';
+                const areaTrabajo = record.area_trab ?
+                    (record.area_trab === 'PLANTA' ? 'Taller' : record.area_trab) : 'N/A';
+
+                return (
+                    <div>
+                        <div>
+                            <Tag color="blue">{areaTrabajo}</Tag>
+                        </div>
+                        <Tooltip title={regionNombre}>
+                            <small style={{ color: '#888' }}>{regionNombre.substring(0, 15)}...</small>
+                        </Tooltip>
+                    </div>
+                );
+            },
+        },
+        {
             title: 'Estado',
-            dataIndex: 'estado_id',
-            key: 'estado_id',
+            key: 'estado',
             width: 120,
-            render: (estadoId, record) => {
+            render: (record) => {
                 try {
                     // Mostrar el estado de la tabla estado_solicitud si existe
-                    if (estadoId) {
-                        const estado = estados[estadoId];
-                        if (!estado) return `ID: ${estadoId}`;
+                    if (record.estado_id) {
+                        const estado = estados[record.estado_id];
+                        if (!estado) return `ID: ${record.estado_id}`;
 
                         return (
                             <Tag color={getColorByEstadoNombre(estado.nombre)}>
-                                {estado.nombre || `Estado ${estadoId}`}
+                                {estado.nombre || `Estado ${record.estado_id}`}
                             </Tag>
                         );
                     }
@@ -372,18 +459,19 @@ const SolicitudList = () => {
         },
         {
             title: 'Técnico Asignado',
-            dataIndex: 'tecnico_asignado',
             key: 'tecnico_asignado',
             width: 150,
-            render: (tecnicoId) => {
+            render: (record) => {
                 try {
-                    if (!tecnicoId) return 'No asignado';
-                    const tecnico = tecnicos[tecnicoId];
-                    if (!tecnico) return `ID: ${tecnicoId}`;
+                    if (!record.tecnico_asignado) return 'No asignado';
+                    const tecnico = tecnicos[record.tecnico_asignado];
+                    if (!tecnico) return `ID: ${record.tecnico_asignado}`;
                     return (
                         <div>
-                            <div>{tecnico.nombre_completo || `Técnico ${tecnicoId}`}</div>
-                            <small>{tecnico.tipo_tecnico || 'Sin tipo'}</small>
+                            <div>{tecnico.nombre_completo || `Técnico ${record.tecnico_asignado}`}</div>
+                            <Tag size="small" color={tecnico.tipo_tecnico === 'Interno' ? 'green' : 'orange'}>
+                                {tecnico.tipo_tecnico || 'Sin tipo'}
+                            </Tag>
                         </div>
                     );
                 } catch (error) {

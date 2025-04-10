@@ -1,15 +1,86 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Card, Descriptions, Button, Spin, message, Typography, Tag, Row, Col, Divider, Space } from 'antd';
-import { EditOutlined, ArrowLeftOutlined, PrinterOutlined, UserOutlined, ToolOutlined, ScheduleOutlined, CheckOutlined, FileTextOutlined, FilePdfOutlined } from '@ant-design/icons';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import { Card, Descriptions, Button, Spin, message, Typography, Tag, Row, Col, Divider, Space, Tabs, Badge } from 'antd';
+import { EditOutlined, ArrowLeftOutlined, PrinterOutlined, UserOutlined, ToolOutlined, ScheduleOutlined, CheckOutlined, FileTextOutlined, FilePdfOutlined, CalendarOutlined, EnvironmentOutlined, InfoCircleOutlined, IdcardOutlined, TeamOutlined } from '@ant-design/icons';
+import moment from 'moment';
 import solicitudService from '../../services/solicitudService';
 import tecnicoService from '../../services/tecnicoService';
 import estadoSolicitudService from '../../services/estadoSolicitudService';
-import logo from '../../assets/logo.png';
+import SolicitudViewPdf from './SolicitudViewPdf';
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
+const { TabPane } = Tabs;
+
+// Mapeo de regiones
+const REGIONES = {
+    '1': 'Primera Región (de Tarapacá)',
+    '2': 'Segunda Región (de Antofagasta)',
+    '3': 'Tercera Región (de Atacama)',
+    '4': 'Cuarta Región (de Coquimbo)',
+    '5': 'Quinta Región (de Valparaíso)',
+    '6': 'Sexta Región (del Libertador B.O higgins)',
+    '7': 'Séptima Región (del Maule)',
+    '8': 'Octava Región (del Bío-Bío)',
+    '9': 'Novena Región (de la Araucanía)',
+    '10': 'Décima Región (de los Lagos)',
+    '11': 'Undécima Región (de Aisén del General Ca)',
+    '12': 'Duodécima Región (de Magallanes y de la)',
+    '13': 'Región Metropolitana (de Santiago)',
+    '14': 'Decimocuarta Región de los Rios',
+    '15': 'Decimoquinta Región de Arica y Parinacota'
+};
+
+// Función para formatear RUT chileno
+const formatRut = (rut) => {
+    if (!rut) return 'N/A';
+
+    // Calcular dígito verificador
+    const calcularDV = (rutNum) => {
+        let suma = 0;
+        let multiplo = 2;
+
+        for (let i = rutNum.length - 1; i >= 0; i--) {
+            suma += parseInt(rutNum.charAt(i)) * multiplo;
+            multiplo = multiplo < 7 ? multiplo + 1 : 2;
+        }
+
+        let dvCalculado = 11 - (suma % 11);
+
+        if (dvCalculado === 11) return '0';
+        if (dvCalculado === 10) return 'K';
+
+        return dvCalculado.toString();
+    };
+
+    // Formatear RUT con puntos y guión
+    let rutFormateado = '';
+    const dv = calcularDV(rut);
+
+    for (let i = rut.length - 1; i >= 0; i--) {
+        rutFormateado = rut.charAt(i) + rutFormateado;
+        if ((rut.length - i) % 3 === 0 && i !== 0) {
+            rutFormateado = '.' + rutFormateado;
+        }
+    }
+
+    return rutFormateado + '-' + dv;
+};
+
+// Mapeo de tipos de solicitud
+const getTipoLabel = (tipo) => {
+    const tiposMap = {
+        'Garantia': 'Garantía',
+        'Servicio': 'Servicio',
+        'Mantenimiento': 'Mantenimiento',
+        'Cortesia': 'Cortesía',
+        'Instalacion': 'Instalación',
+        'Reparacion': 'Reparación',
+        'Conversion': 'Conversión',
+        'Logistica': 'Logística'
+    };
+
+    return tiposMap[tipo] || tipo || 'N/A';
+};
 
 const SolicitudView = () => {
     const { id } = useParams();
@@ -18,6 +89,7 @@ const SolicitudView = () => {
     const [error, setError] = useState(null);
     const [tecnicoAsignado, setTecnicoAsignado] = useState(null);
     const [estadoAsignado, setEstadoAsignado] = useState(null);
+    const [showPdf, setShowPdf] = useState(false);
     const contentRef = useRef(null);
 
     useEffect(() => {
@@ -70,43 +142,17 @@ const SolicitudView = () => {
     }, [id]);
 
     const handlePrint = () => {
-        window.print();
+        setShowPdf(true);
+        setTimeout(() => {
+            window.print();
+            setShowPdf(false);
+        }, 100);
     };
 
-    const handleExportPDF = async () => {
-        try {
-            message.loading({ content: 'Generando PDF...', key: 'pdfLoading' });
-            const element = contentRef.current;
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                logging: false,
-                useCORS: true,
-                windowWidth: 1920
-            });
-
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'letter' // Formato carta (216 x 279 mm)
-            });
-
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const imgWidth = canvas.width;
-            const imgHeight = canvas.height;
-            const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-            const imgX = (pdfWidth - imgWidth * ratio) / 2;
-            const imgY = 0;
-
-            pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
-            pdf.save(`hoja_servicio_${id}.pdf`);
-
-            message.success({ content: 'PDF generado correctamente', key: 'pdfLoading' });
-        } catch (error) {
-            console.error('Error al generar PDF:', error);
-            message.error({ content: 'Error al generar el PDF', key: 'pdfLoading' });
-        }
+    const handleExportPDF = () => {
+        if (!solicitud) return;
+        setShowPdf(true);
+        // SolicitudViewPdf manejará la exportación
     };
 
     const getEstadoTag = (estado) => {
@@ -145,6 +191,12 @@ const SolicitudView = () => {
         }
     };
 
+    const getAreaTrabajoLabel = (area) => {
+        if (!area) return 'N/A';
+        if (area === 'PLANTA') return 'Taller';
+        return area;
+    };
+
     const formatDate = (dateString) => {
         try {
             if (!dateString) return 'No disponible';
@@ -152,6 +204,12 @@ const SolicitudView = () => {
         } catch (error) {
             return 'Fecha inválida';
         }
+    };
+
+    const verificarGarantia = (fechaFactura) => {
+        if (!fechaFactura) return false;
+        const fechaLimite = moment(fechaFactura).add(1, 'year');
+        return moment().isBefore(fechaLimite);
     };
 
     if (loading) {
@@ -170,294 +228,218 @@ const SolicitudView = () => {
         );
     }
 
+    // Verificar si la garantía está activa
+    const garantiaActiva = solicitud.fecha_fact ? verificarGarantia(solicitud.fecha_fact) : false;
+
     return (
-        <div className="print-container">
-            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }} className="no-print">
-                <Title level={2}>Hoja de Servicio #{solicitud.id}</Title>
-                <Space>
-                    <Link to="/solicitudes">
-                        <Button icon={<ArrowLeftOutlined />}>
-                            Volver
-                        </Button>
-                    </Link>
-                    <Link to={`/solicitudes/edit/${id}`}>
-                        <Button icon={<EditOutlined />}>
-                            Editar
-                        </Button>
-                    </Link>
-                    <Button type="primary" icon={<FilePdfOutlined />} onClick={handleExportPDF}>
-                        Exportar PDF
-                    </Button>
-                    <Button icon={<PrinterOutlined />} onClick={handlePrint}>
-                        Imprimir
-                    </Button>
-                </Space>
-            </div>
+        <div>
+            {showPdf ? (
+                <SolicitudViewPdf
+                    solicitud={solicitud}
+                    tecnicoAsignado={tecnicoAsignado}
+                    estadoAsignado={estadoAsignado}
+                    garantiaActiva={garantiaActiva}
+                    onFinish={() => setShowPdf(false)}
+                />
+            ) : (
+                <>
+                    {/* Header con acciones */}
+                    <Row gutter={16} className="no-print" style={{ marginBottom: 16 }}>
+                        <Col span={16}>
+                            <Space align="center">
+                                <Title level={2} style={{ margin: 0 }}>
+                                    Solicitud #{solicitud.id}
+                                </Title>
+                                {estadoAsignado ? getEstadoAsignadoTag(estadoAsignado) : getEstadoTag(solicitud.estado)}
+                            </Space>
+                        </Col>
+                        <Col span={8} style={{ textAlign: 'right' }}>
+                            <Space>
+                                <Link to="/solicitudes">
+                                    <Button icon={<ArrowLeftOutlined />}>
+                                        Volver
+                                    </Button>
+                                </Link>
+                                <Link to={`/solicitudes/edit/${id}`}>
+                                    <Button icon={<EditOutlined />}>
+                                        Editar
+                                    </Button>
+                                </Link>
+                                <Button type="primary" icon={<FilePdfOutlined />} onClick={handleExportPDF}>
+                                    Exportar PDF
+                                </Button>
+                                <Button icon={<PrinterOutlined />} onClick={handlePrint}>
+                                    Imprimir
+                                </Button>
+                            </Space>
+                        </Col>
+                    </Row>
 
-            <div ref={contentRef} className="documento-carta">
-                {/* Encabezado con logo */}
-                <div className="header">
-                    <div className="logo-container">
-                        <img src={logo} alt="Logo STMG" className="logo" />
+                    {/* Contenido principal */}
+                    <div className="main-content" ref={contentRef}>
+                        <Row gutter={16}>
+                            {/* Primera columna - Información básica */}
+                            <Col xs={24} lg={8}>
+                                {/* Información básica */}
+                                <Card
+                                    title={<Space><InfoCircleOutlined /> Información General</Space>}
+                                    className="info-card"
+                                    style={{ marginBottom: 16 }}
+                                >
+                                    <Descriptions column={1} size="small" bordered>
+                                        <Descriptions.Item
+                                            label={<Space><CalendarOutlined /> Fecha</Space>}
+                                        >
+                                            {formatDate(solicitud.fecha)}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item
+                                            label={<Space><ScheduleOutlined /> Tipo de Solicitud</Space>}
+                                        >
+                                            {getTipoLabel(solicitud.tipo)}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item
+                                            label={<Space><UserOutlined /> Creada Por</Space>}
+                                        >
+                                            {solicitud.creada_por || 'N/A'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item
+                                            label={<Space><EnvironmentOutlined /> Área de Trabajo</Space>}
+                                        >
+                                            <Tag color="blue">{getAreaTrabajoLabel(solicitud.area_trab)}</Tag>
+                                        </Descriptions.Item>
+                                        <Descriptions.Item
+                                            label={<Space><EnvironmentOutlined /> Región</Space>}
+                                        >
+                                            {REGIONES[solicitud.region] || `Región ${solicitud.region}`}
+                                        </Descriptions.Item>
+                                    </Descriptions>
+                                </Card>
+
+                                {/* Datos del cliente */}
+                                <Card
+                                    title={<Space><UserOutlined /> Información del Cliente</Space>}
+                                    className="info-card"
+                                    style={{ marginBottom: 16 }}
+                                >
+                                    <Descriptions column={1} size="small" bordered>
+                                        <Descriptions.Item
+                                            label={<Space><IdcardOutlined /> RUT</Space>}
+                                        >
+                                            {solicitud.codaux ? formatRut(solicitud.codaux) : 'N/A'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item
+                                            label={<Space><UserOutlined /> Nombre</Space>}
+                                        >
+                                            {solicitud.nomaux || 'N/A'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item
+                                            label={<Space><EnvironmentOutlined /> Dirección</Space>}
+                                        >
+                                            {solicitud.dir_visita || 'N/A'}
+                                        </Descriptions.Item>
+                                    </Descriptions>
+                                </Card>
+
+                                {/* Datos de facturación */}
+                                <Card
+                                    title={<Space><FileTextOutlined /> Facturación</Space>}
+                                    className="info-card"
+                                    style={{ marginBottom: 16 }}
+                                >
+                                    <Descriptions column={1} size="small" bordered>
+                                        <Descriptions.Item
+                                            label={<Space><FileTextOutlined /> N° Factura</Space>}
+                                        >
+                                            {solicitud.factura || 'N/A'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item
+                                            label={<Space><CalendarOutlined /> Fecha Factura</Space>}
+                                        >
+                                            {solicitud.fecha_fact ? formatDate(solicitud.fecha_fact) : 'N/A'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item
+                                            label="Estado Garantía"
+                                        >
+                                            {solicitud.fecha_fact ? (
+                                                <Badge
+                                                    status={garantiaActiva ? "success" : "error"}
+                                                    text={garantiaActiva ? "Garantía activa" : "Garantía vencida"}
+                                                />
+                                            ) : 'N/A'}
+                                        </Descriptions.Item>
+                                    </Descriptions>
+                                </Card>
+                            </Col>
+
+                            {/* Segunda columna - Detalles técnicos */}
+                            <Col xs={24} lg={16}>
+                                <Tabs defaultActiveKey="1" type="card">
+                                    <TabPane tab={<span><ToolOutlined /> Detalles Técnicos</span>} key="1">
+                                        <Card className="info-card">
+                                            <Descriptions title="Problema Reportado" column={1} size="small" bordered>
+                                                <Descriptions.Item label="Descripción del Problema">
+                                                    {solicitud.desc_motivo || 'N/A'}
+                                                </Descriptions.Item>
+                                                <Descriptions.Item label="Número de Serie">
+                                                    {solicitud.nro_serie || 'N/A'}
+                                                </Descriptions.Item>
+                                            </Descriptions>
+
+                                            <Divider />
+
+                                            <Descriptions title="Técnico Asignado" column={1} size="small" bordered>
+                                                {tecnicoAsignado ? (
+                                                    <>
+                                                        <Descriptions.Item label={<Space><TeamOutlined /> Nombre</Space>}>
+                                                            {tecnicoAsignado.nombre_completo || 'Sin nombre'}
+                                                        </Descriptions.Item>
+                                                        <Descriptions.Item label={<Space><ToolOutlined /> Especialidad</Space>}>
+                                                            {tecnicoAsignado.especialidad || 'No especificada'}
+                                                        </Descriptions.Item>
+                                                        <Descriptions.Item label={<Space><IdcardOutlined /> Tipo</Space>}>
+                                                            <Tag color={tecnicoAsignado.tipo_tecnico === 'Interno' ? 'green' : 'orange'}>
+                                                                {tecnicoAsignado.tipo_tecnico || 'No especificado'}
+                                                            </Tag>
+                                                        </Descriptions.Item>
+                                                    </>
+                                                ) : (
+                                                    <Descriptions.Item label="Técnico">
+                                                        No asignado
+                                                    </Descriptions.Item>
+                                                )}
+                                            </Descriptions>
+                                        </Card>
+                                    </TabPane>
+
+                                    <TabPane tab={<span><CheckOutlined /> Estado</span>} key="2">
+                                        <Card className="info-card">
+                                            <Descriptions column={1} size="small" bordered>
+                                                <Descriptions.Item label="Estado Actual">
+                                                    {estadoAsignado ? getEstadoAsignadoTag(estadoAsignado) : getEstadoTag(solicitud.estado)}
+                                                </Descriptions.Item>
+                                                <Descriptions.Item label="Fecha de Estado">
+                                                    {solicitud.fecha_estado ? formatDate(solicitud.fecha_estado) : 'N/A'}
+                                                </Descriptions.Item>
+                                                <Descriptions.Item label="Fecha de Cierre">
+                                                    {solicitud.fec_cierre ? formatDate(solicitud.fec_cierre) : 'Pendiente de cierre'}
+                                                </Descriptions.Item>
+                                            </Descriptions>
+                                        </Card>
+                                    </TabPane>
+                                </Tabs>
+                            </Col>
+                        </Row>
                     </div>
-                    <div className="company-info">
-                        <h1>Hoja de Servicio Técnico</h1>
-                        <p>Servicio Técnico MAIGAS</p>
-                        <p>Santiago, Chile</p>
-                    </div>
-                    <div className="doc-number">
-                        <div className="folio">Folio N° {solicitud.id}</div>
-                        <div className="doc-date">Fecha: {formatDate(solicitud.fecha).split(',')[0]}</div>
-                    </div>
-                </div>
-
-                <Divider style={{ margin: '16px 0', borderColor: '#1890ff' }} />
-
-                {/* Información del Cliente */}
-                <Card
-                    title={<><UserOutlined /> Información del Cliente</>}
-                    style={{ marginBottom: 16 }}
-                    className="card-section"
-                    headStyle={{ backgroundColor: '#f0f5ff', color: '#096dd9' }}
-                >
-                    <Descriptions bordered column={1} size="small" labelStyle={{ fontWeight: 'bold' }}>
-                        <Descriptions.Item label="Código Cliente">{solicitud.codaux || 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Nombre Cliente">{solicitud.nomaux || 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Dirección">{solicitud.dir_visita || 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Región/Comuna">{solicitud.region || 'N/A'} / {solicitud.comuna || 'N/A'}</Descriptions.Item>
-                    </Descriptions>
-                </Card>
-
-                {/* Problema y Equipo */}
-                <Card
-                    title={<><ToolOutlined /> Detalle del Problema y Equipo</>}
-                    style={{ marginBottom: 16 }}
-                    className="card-section"
-                    headStyle={{ backgroundColor: '#f6ffed', color: '#52c41a' }}
-                >
-                    <Descriptions bordered column={1} size="small" labelStyle={{ fontWeight: 'bold' }}>
-                        <Descriptions.Item label="Tipo de Motivo">{solicitud.tipo_motivo || 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Descripción del Problema">{solicitud.desc_motivo || 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Código de Falla">{solicitud.codigo_falla || 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Número de Serie">{solicitud.nro_serie || 'N/A'}</Descriptions.Item>
-                    </Descriptions>
-                </Card>
-
-                {/* Información del Técnico y Agendamiento */}
-                <Card
-                    title={<><ScheduleOutlined /> Información de Agendamiento</>}
-                    style={{ marginBottom: 16 }}
-                    className="card-section"
-                    headStyle={{ backgroundColor: '#e6f7ff', color: '#1890ff' }}
-                >
-                    <Descriptions bordered column={1} size="small" labelStyle={{ fontWeight: 'bold' }}>
-                        <Descriptions.Item label="Técnico Asignado">
-                            {tecnicoAsignado ? (
-                                <div>
-                                    <div>{tecnicoAsignado.nombre_completo || 'Sin nombre'}</div>
-                                    <div><small>Especialidad: {tecnicoAsignado.especialidad || 'No especificada'}</small></div>
-                                    <div><small>Tipo: {tecnicoAsignado.tipo_tecnico || 'No especificado'}</small></div>
-                                </div>
-                            ) : solicitud.tecnico_asignado ? (
-                                `ID: ${solicitud.tecnico_asignado} (No se pudieron cargar detalles)`
-                            ) : (
-                                'No asignado'
-                            )}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Área de Trabajo">{solicitud.area_trab || 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Fecha de Estado">{solicitud.fecha_estado ? formatDate(solicitud.fecha_estado) : 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Estado Actual">
-                            {estadoAsignado ? getEstadoAsignadoTag(estadoAsignado) : getEstadoTag(solicitud.estado)}
-                        </Descriptions.Item>
-                    </Descriptions>
-                </Card>
-
-                {/* Resolución */}
-                <Card
-                    title={<><CheckOutlined /> Resolución</>}
-                    style={{ marginBottom: 16 }}
-                    className="card-section"
-                    headStyle={{ backgroundColor: '#f9f0ff', color: '#722ed1' }}
-                >
-                    <Descriptions bordered column={1} size="small" labelStyle={{ fontWeight: 'bold' }}>
-                        <Descriptions.Item label="Fecha de Cierre">{solicitud.fec_cierre ? formatDate(solicitud.fec_cierre) : 'No cerrada'}</Descriptions.Item>
-                        <Descriptions.Item label="Fecha Real de Cierre">{solicitud.fec_real_cierre ? formatDate(solicitud.fec_real_cierre) : 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Técnico de Cierre">{solicitud.tecnico_cierre || 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Motivo de Estado">{solicitud.motivo_estado || 'N/A'}</Descriptions.Item>
-                    </Descriptions>
-                </Card>
-
-                {/* Información Administrativa */}
-                <Card
-                    title={<><FileTextOutlined /> Información Administrativa</>}
-                    style={{ marginBottom: 16 }}
-                    className="card-section"
-                    headStyle={{ backgroundColor: '#fff7e6', color: '#fa8c16' }}
-                >
-                    <Descriptions bordered column={1} size="small" labelStyle={{ fontWeight: 'bold' }}>
-                        <Descriptions.Item label="Tipo">{solicitud.tipo === 'F' ? 'Facturado' : 'No Facturado'}</Descriptions.Item>
-                        <Descriptions.Item label="Número Factura">{solicitud.factura || 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Fecha Factura">{solicitud.fecha_fact || 'N/A'}</Descriptions.Item>
-                        <Descriptions.Item label="Creada Por">{solicitud.creada_por || 'N/A'}</Descriptions.Item>
-                    </Descriptions>
-                </Card>
-
-                {/* Firma del cliente */}
-                <div className="firma-section">
-                    <div className="firma-box">
-                        <Divider style={{ margin: '60px 30px 5px 30px' }} />
-                        <p style={{ textAlign: 'center' }}>Firma del Cliente</p>
-                    </div>
-                    <div className="firma-box">
-                        <Divider style={{ margin: '60px 30px 5px 30px' }} />
-                        <p style={{ textAlign: 'center' }}>Firma del Técnico</p>
-                    </div>
-                </div>
-
-                {/* Pie de página */}
-                <div className="footer">
-                    <p>STMG - Servicio Técnico MAIGAS</p>
-                    <p>Teléfono: +56 2 2222 3333 • Email: contacto@stmg.cl • www.stmg.cl</p>
-                    <p className="page-number">Página 1 de 1</p>
-                </div>
-            </div>
+                </>
+            )}
 
             <style jsx="true">{`
-                .documento-carta {
-                    width: 400.9mm;
-                    min-height: 279.4mm;
-                    margin: 0 auto;
-                    padding: 15mm;
-                    background: white;
-                    box-shadow: 0 0 10px rgba(0,0,0,0.5);
-                    font-family: Arial, sans-serif;
-                    position: relative;
-                }
-
-                .header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
+                .main-content {
                     margin-bottom: 20px;
                 }
-
-                .logo-container {
-                    width: 20%;
-                }
-
-                .logo {
-                    max-width: 100%;
-                    max-height: 60px;
-                }
-
-                .company-info {
-                    width: 50%;
-                    text-align: center;
-                }
-
-                .company-info h1 {
-                    margin: 0;
-                    font-size: 22px;
-                    color: #1890ff;
-                }
-
-                .company-info p {
-                    margin: 3px 0;
-                    color: #666;
-                    font-size: 14px;
-                }
-
-                .doc-number {
-                    width: 30%;
-                    text-align: right;
-                }
-
-                .folio {
-                    font-size: 16px;
-                    font-weight: bold;
-                    color: #1890ff;
-                    margin-bottom: 5px;
-                }
-
-                .doc-date {
-                    font-size: 14px;
-                    color: #666;
-                }
-
-                .card-section {
-                    border-radius: 6px;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-                    overflow: hidden;
-                }
-
-                .firma-section {
-                    display: flex;
-                    justify-content: space-around;
-                    margin: 40px 0;
-                }
-
-                .firma-box {
-                    width: 40%;
-                }
-
-                .footer {
-                    position: absolute;
-                    left: 15mm;
-                    right: 15mm;
-                    bottom: 15mm;
-                    border-top: 1px solid #e8e8e8;
-                    padding-top: 10px;
-                    text-align: center;
-                    font-size: 12px;
-                    color: #999;
-                }
-
-                .footer p {
-                    margin: 2px 0;
-                }
-
-                .page-number {
-                    position: absolute;
-                    right: 0;
-                    bottom: 0;
-                }
-
-                @media print {
-                    .no-print {
-                        display: none !important;
-                    }
-                    .print-only {
-                        display: block !important;
-                    }
-                    .documento-carta {
-                        box-shadow: none;
-                        padding: 5mm;
-                        width: 100%;
-                        min-height: auto;
-                    }
-                    .ant-card {
-                        break-inside: avoid;
-                        margin-bottom: 10mm;
-                        border: 1px solid #ddd !important;
-                        box-shadow: none !important;
-                    }
-                    .ant-card-head {
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                    }
-                    body {
-                        padding: 0;
-                        margin: 0;
-                    }
-                    @page {
-                        size: letter;
-                        margin: 10mm;
-                    }
-                }
-                @media screen {
-                    .print-only {
-                        display: none;
-                    }
+                
+                .info-card {
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
                 }
             `}</style>
         </div>

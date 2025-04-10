@@ -1,14 +1,11 @@
-import axios from 'axios';
-
-const API_URL = "http://localhost:5173/api"; // Verifica que esta URL sea la correcta
+import api from '../config/api';
 
 const authService = {
-    login: (email, password) => axios.post(`${API_URL}/auth/login`, { email, password }),
+    // Usar la instancia de api configurada para detectar automáticamente el entorno
+    login: (email, password) => api.post('/auth/login', { email, password }),
 
-    getUserData: () =>
-        axios.get(`${API_URL}/auth/user`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        }),
+    // Ya no necesitamos añadir el token manualmente, el interceptor en api.js lo hace
+    getUserData: () => api.get('/auth/user')
 };
 
 export default authService;

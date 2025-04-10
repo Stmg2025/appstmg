@@ -11,6 +11,7 @@ import UserList from './pages/Users/UserList';
 import UserCreate from './pages/Users/UserCreate';
 import UserView from './pages/Users/UserView';
 import UserEdit from './pages/Users/UserEdit';
+import UserProfile from './pages/Users/UserProfile';
 
 // Roles
 import RoleList from './pages/Roles/RoleList';
@@ -94,6 +95,18 @@ const AppRoutes = () => {
                     <ProtectedRoute>
                         <MainLayout>
                             <Dashboard />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* Ruta de perfil de usuario */}
+            <Route
+                path="/profile"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <UserProfile />
                         </MainLayout>
                     </ProtectedRoute>
                 }

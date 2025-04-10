@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react';
-import { Layout, Menu, Button, Typography, Spin } from 'antd';
+import React from 'react';
+import { Layout, Menu, Button, Typography, Spin, Avatar, Space, Divider } from 'antd';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { UserOutlined } from '@ant-design/icons';
 import logo from '../../assets/logo.png';
+import logoMaigas from '../../assets/LOGO_MAIGAS_ALTA.png';
 
 const { Header: AntHeader } = Layout;
 const { Title, Text } = Typography;
@@ -11,10 +13,6 @@ const Header = () => {
     const { isAuthenticated, logout, user, loading } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
-
-    useEffect(() => {
-        console.log("🔍 Datos del usuario en Header:", user);
-    }, [user]);
 
     if (!isAuthenticated) {
         return (
@@ -27,7 +25,7 @@ const Header = () => {
     const menuItems = [
         {
             key: 'dashboard',
-            label: <Link to="/">Dashboard</Link>
+            label: <Link to="/">Panel de Control</Link>
         },
         {
             key: 'administracion',
@@ -77,6 +75,11 @@ const Header = () => {
         navigate('/login');
     };
 
+    // Simplificado sin roles
+    const firstName = user?.first_name || '';
+    const lastName = user?.last_name || '';
+    const userCargo = user?.cargo || '';
+
     return (
         <AntHeader style={{ background: '#fff', padding: '0 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -95,21 +98,28 @@ const Header = () => {
                 />
             </div>
 
-            {loading ? (
-                <Spin style={{ marginRight: '15px' }} />
-            ) : user && user.name ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginRight: '15px' }}>
-                    <Text strong>{user.name}</Text>
-                    <Text type="secondary">{user.cargo}</Text>
-                    <Text type="danger">{user.role}</Text>
-                </div>
-            ) : (
-                <Text type="danger" style={{ marginRight: '15px' }}>Usuario no identificado</Text>
-            )}
-
-            <Button type="primary" onClick={handleLogout}>
-                Cerrar Sesión
-            </Button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                {loading ? (
+                    <Spin />
+                ) : user ? (
+                    <Space align="center">
+                        <Avatar
+                            style={{ backgroundColor: '#1890ff', verticalAlign: 'middle' }}
+                            icon={<UserOutlined />}
+                        />
+                        <Space direction="vertical" size={0} style={{ lineHeight: 1.2 }}>
+                            <Text strong style={{ fontSize: '14px' }}>{firstName} {lastName}</Text>
+                            <Text type="secondary" style={{ fontSize: '12px' }}>{userCargo}</Text>
+                        </Space>
+                        <Button type="primary" size="small" onClick={handleLogout}>
+                            Cerrar Sesión
+                        </Button>
+                    </Space>
+                ) : (
+                    <Text type="danger">Usuario no identificado</Text>
+                )}
+                <img src={logoMaigas} alt="Logo Maigas" style={{ height: 40, marginLeft: 5 }} />
+            </div>
         </AntHeader>
     );
 };

@@ -46,9 +46,9 @@ const InventoryList = () => {
         }
 
         const filtered = inventory.filter(item =>
-            item.codigo.toLowerCase().includes(searchText.toLowerCase()) ||
-            item.descripcion.toLowerCase().includes(searchText.toLowerCase()) ||
-            item.ubicacion.toLowerCase().includes(searchText.toLowerCase())
+            (item.codigo || '').toLowerCase().includes(searchText.toLowerCase()) ||
+            (item.descripcion || '').toLowerCase().includes(searchText.toLowerCase()) ||
+            (item.ubicacion || '').toLowerCase().includes(searchText.toLowerCase())
         );
 
         setFilteredInventory(filtered);
