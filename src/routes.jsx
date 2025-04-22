@@ -42,6 +42,12 @@ import TecnicoList from './pages/Tecnicos/TecnicoList';
 import TecnicoView from './pages/Tecnicos/TecnicoView';
 import TecnicoEdit from './pages/Tecnicos/TecnicoEdit';
 
+// Clientes
+import ClienteList from './pages/Clientes/ClienteList';
+import ClienteCreate from './pages/Clientes/ClienteCreate';
+import ClienteView from './pages/Clientes/ClienteView';
+import ClienteEdit from './pages/Clientes/ClienteEdit';
+
 // Dashboard
 import Dashboard from './pages/Dashboard/Dashboard';
 
@@ -349,6 +355,48 @@ const AppRoutes = () => {
                     <ProtectedRoute>
                         <MainLayout>
                             <TecnicoEdit />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* Rutas protegidas de Clientes */}
+            <Route
+                path="/clientes"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <ClienteList />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/clientes/create"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <ClienteCreate />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/clientes/:codaux"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <ClienteView />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/clientes/edit/:codaux"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <ClienteEdit />
                         </MainLayout>
                     </ProtectedRoute>
                 }

@@ -58,6 +58,14 @@ const Header = () => {
                 { key: 'solicitudesList', label: <Link to="/solicitudes">Ver Solicitudes</Link> },
                 { key: 'solicitudesCreate', label: <Link to="/solicitudes/create">Nueva Solicitud</Link> }
             ]
+        },
+        {
+            key: 'clientes',
+            label: 'Clientes',
+            children: [
+                { key: 'clientesList', label: <Link to="/clientes">Ver Clientes</Link> },
+                { key: 'clientesCreate', label: <Link to="/clientes/create">Nuevo Cliente</Link> }
+            ]
         }
     ];
 
@@ -67,6 +75,7 @@ const Header = () => {
         if (path.includes('/users') || path.includes('/roles') || path.includes('/tecnicos') || path.includes('/estados-solicitud')) return 'administracion';
         if (path.includes('/inventory')) return 'inventory';
         if (path.includes('/solicitudes')) return 'solicitudes';
+        if (path.includes('/clientes')) return 'clientes';
         return '';
     };
 
