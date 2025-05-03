@@ -3,55 +3,9 @@ import { message } from 'antd';
 import { jsPDF } from 'jspdf';
 import logo from '../../assets/logo.png';
 import logoMaigas from '../../assets/LOGO_MAIGAS_ALTA.png';
+import { formatRut, formatDate } from './constants';
 
-// Utilidades de formato
-const formatRut = (rut) => {
-    if (!rut) return 'N/A';
-
-    // Limpiar: solo números
-    let rutNumeros = String(rut).replace(/[^\d]/g, '');
-
-    if (!rutNumeros) return 'N/A';
-
-    // Calcular dígito verificador
-    const calcularDV = (rutSinDv) => {
-        let suma = 0;
-        let multiplo = 2;
-
-        for (let i = rutSinDv.length - 1; i >= 0; i--) {
-            suma += parseInt(rutSinDv[i], 10) * multiplo;
-            multiplo = multiplo === 7 ? 2 : multiplo + 1;
-        }
-
-        const resto = 11 - (suma % 11);
-        if (resto === 11) return '0';
-        if (resto === 10) return 'K';
-        return String(resto);
-    };
-
-    const dv = calcularDV(rutNumeros);
-
-    // Agregar puntos separadores
-    let cuerpoFormateado = '';
-    let contador = 0;
-
-    for (let i = rutNumeros.length - 1; i >= 0; i--) {
-        cuerpoFormateado = rutNumeros[i] + cuerpoFormateado;
-        contador++;
-        if (contador === 3 && i !== 0) {
-            cuerpoFormateado = '.' + cuerpoFormateado;
-            contador = 0;
-        }
-    }
-
-    return `${cuerpoFormateado}-${dv}`;
-};
-
-
-const formatDate = (fecha) => new Date(fecha).toLocaleDateString('es-CL');
-const getLabel = (value, defaultText = 'N/A') => value || defaultText;
-
-// Constantes para colores (esquema rojo, negro y blanco)
+// Constantes para colores
 const COLORS = {
     primary: [200, 0, 0],
     secondary: [40, 40, 40],
@@ -70,6 +24,11 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
         return () => clearTimeout(timer);
     }, []);
 
+    const getLabel = (value, defaultText = 'N/A') => {
+        if (value === null || value === undefined) return defaultText;
+        return String(value);
+    };
+
     const createPdfDocument = () => {
         return new jsPDF({
             orientation: 'portrait',
@@ -82,23 +41,28 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
     const addHeaderToPdf = (pdf, pageWidth) => {
         const margin = 50;
 
+        // Fondo del encabezado
         pdf.setFillColor(248, 248, 248);
         pdf.rect(0, 0, pageWidth, 120, 'F');
 
+        // Línea divisoria
         pdf.setDrawColor(...COLORS.primary);
         pdf.setLineWidth(2);
         pdf.line(0, 120, pageWidth, 120);
 
+        // Logo principal
         const logoSize = 60;
         const logoX = margin;
         const logoY = 25;
         pdf.addImage(logo, 'PNG', logoX, logoY, logoSize, logoSize);
 
+        // Logo Maigas
         const logoMaigasWidth = 80;
         const logoMaigasHeight = 30;
         const logoMaigasX = pageWidth - margin - logoMaigasWidth;
         pdf.addImage(logoMaigas, 'PNG', logoMaigasX, logoY + 10, logoMaigasWidth, logoMaigasHeight);
 
+        // Títulos
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(...COLORS.text);
         pdf.setFontSize(18);
@@ -107,8 +71,7 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
         pdf.setFontSize(16);
         pdf.text(`OT N° ${solicitud.id}`, pageWidth / 2, logoY + 50, { align: 'center' });
 
-
-
+        // Información de la empresa
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(8);
         pdf.setTextColor(...COLORS.lightText);
@@ -116,6 +79,7 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
         pdf.text('Santiago, Chile', logoX, logoY + logoSize + 17);
         pdf.text('serviciotecnico@maigas.cl', logoX, logoY + logoSize + 26);
 
+        // Fecha del informe
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(8);
         pdf.setTextColor(...COLORS.secondary);
@@ -141,20 +105,25 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
     };
 
     const drawLabelValue = (pdf, label, value, y, margin, pageWidth) => {
+        const valueStr = String(value || 'N/A');
+
+        // Fondo alternado para mejorar legibilidad
         if (y % 40 < 20 && pageWidth) {
             pdf.setFillColor(248, 248, 248);
             pdf.rect(margin, y - 12, pageWidth - margin * 2, 20, 'F');
         }
 
+        // Etiqueta
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(10);
         pdf.setTextColor(...COLORS.secondary);
         pdf.text(label, margin + 15, y);
 
+        // Valor
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(...COLORS.text);
         const valueX = margin + 150;
-        pdf.text(value, valueX, y);
+        pdf.text(valueStr, valueX, y);
 
         return y + 20;
     };
@@ -162,23 +131,46 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
     const addClienteSection = (pdf, startY, pageWidth, margin) => {
         let y = drawSectionTitle(pdf, 'INFORMACIÓN DEL CLIENTE', startY, pageWidth, margin);
 
+        // RUT del cliente
         let rutMostrar = 'N/A';
-        if (solicitud.nomaux && solicitud.nomaux.toLowerCase().includes('sodexo')) {
-            rutMostrar = '94.623.000-0';
-        } else if (solicitud.codaux) {
+        if (solicitud.codaux) {
             rutMostrar = formatRut(solicitud.codaux);
         }
 
         y = drawLabelValue(pdf, 'RUT Cliente:', rutMostrar, y, margin, pageWidth);
         y = drawLabelValue(pdf, 'Nombre Cliente:', getLabel(solicitud.nomaux), y, margin, pageWidth);
+
+        if (solicitud.tipo_cliente) {
+            y = drawLabelValue(pdf, 'Tipo de Cliente:', getLabel(solicitud.tipo_cliente), y, margin, pageWidth);
+        }
+
+        if (solicitud.nombre) {
+            y = drawLabelValue(pdf, 'Contacto:', getLabel(solicitud.nombre), y, margin, pageWidth);
+        }
+
+        if (solicitud.telefono) {
+            y = drawLabelValue(pdf, 'Teléfono:', getLabel(solicitud.telefono), y, margin, pageWidth);
+        }
+
+        if (solicitud.mail) {
+            y = drawLabelValue(pdf, 'Email:', getLabel(solicitud.mail), y, margin, pageWidth);
+        }
+
         y = drawLabelValue(pdf, 'Dirección:', getLabel(solicitud.dir_visita), y, margin, pageWidth);
+
         return y + 5;
     };
 
     const addProblemaSection = (pdf, startY, pageWidth, margin) => {
         let y = drawSectionTitle(pdf, 'DETALLE DEL PROBLEMA Y EQUIPO', startY, pageWidth, margin);
+
         y = drawLabelValue(pdf, 'Tipo de Solicitud:', getLabel(solicitud.tipo), y, margin, pageWidth);
 
+        if (solicitud.prioridad) {
+            y = drawLabelValue(pdf, 'Prioridad:', getLabel(solicitud.prioridad), y, margin, pageWidth);
+        }
+
+        // Descripción del problema
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(...COLORS.secondary);
         pdf.text('Descripción:', margin + 15, y);
@@ -192,7 +184,18 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
         pdf.text(desc, descX, y);
 
         y += desc.length * 13 + 5;
+
+        // Datos del producto
+        if (solicitud.codprod) {
+            y = drawLabelValue(pdf, 'Código Producto:', getLabel(solicitud.codprod), y, margin, pageWidth);
+        }
+
+        if (solicitud.desprod) {
+            y = drawLabelValue(pdf, 'Descripción Prod.:', getLabel(solicitud.desprod), y, margin, pageWidth);
+        }
+
         y = drawLabelValue(pdf, 'N° Serie:', getLabel(solicitud.nro_serie), y, margin, pageWidth);
+
         return y + 5;
     };
 
@@ -201,20 +204,46 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
         const tecnico = tecnicoAsignado || {};
 
         y = drawLabelValue(pdf, 'Técnico Asignado:', tecnico.nombre_completo || 'No asignado', y, margin, pageWidth);
+
         if (tecnicoAsignado) {
-            y = drawLabelValue(pdf, 'Especialidad:', getLabel(tecnico.especialidad), y, margin, pageWidth);
-            y = drawLabelValue(pdf, 'Tipo:', getLabel(tecnico.tipo_tecnico), y, margin, pageWidth);
+            if (tecnico.especialidad) {
+                y = drawLabelValue(pdf, 'Especialidad:', getLabel(tecnico.especialidad), y, margin, pageWidth);
+            }
+            if (tecnico.tipo_tecnico) {
+                y = drawLabelValue(pdf, 'Tipo:', getLabel(tecnico.tipo_tecnico), y, margin, pageWidth);
+            }
+        }
+
+        if (solicitud.fecha_agendamiento) {
+            y = drawLabelValue(pdf, 'Fecha Agendamiento:', formatDate(solicitud.fecha_agendamiento), y, margin, pageWidth);
         }
 
         y = drawLabelValue(pdf, 'Área de Trabajo:', getLabel(solicitud.area_trab), y, margin, pageWidth);
 
+        if (solicitud.ejecucion) {
+            y = drawLabelValue(pdf, 'Estado de Ejecución:', getLabel(solicitud.ejecucion), y, margin, pageWidth);
+        }
+
+        // Seguimiento
+        y = drawLabelValue(pdf, 'Cliente Contactado:', solicitud.cliente_contactado === 'S' ? 'Sí' : 'No', y, margin, pageWidth);
+        y = drawLabelValue(pdf, 'Distribuidor Contactado:', solicitud.distribuidor_contactado === 'S' ? 'Sí' : 'No', y, margin, pageWidth);
+        y = drawLabelValue(pdf, 'Técnico Confirmado:', solicitud.tecnico_confirmado === 'S' ? 'Sí' : 'No', y, margin, pageWidth);
+        y = drawLabelValue(pdf, 'Reporte Enviado:', solicitud.reporte_enviado === 'S' ? 'Sí' : 'No', y, margin, pageWidth);
+
+        // Estado
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(...COLORS.secondary);
         pdf.text('Estado Actual:', margin + 15, y);
 
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(...COLORS.primary);
-        pdf.text(estadoAsignado ? estadoAsignado.nombre : getLabel(solicitud.estado), margin + 150, y);
+        const estadoText = estadoAsignado ? estadoAsignado.nombre : getLabel(solicitud.estado);
+        pdf.text(String(estadoText), margin + 150, y);
+
+        if (solicitud.motivo_estado) {
+            y += 20;
+            y = drawLabelValue(pdf, 'Motivo del Estado:', getLabel(solicitud.motivo_estado), y, margin, pageWidth);
+        }
 
         return y + 25;
     };
@@ -222,9 +251,19 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
     const addAdminSection = (pdf, startY, pageWidth, pageHeight, margin) => {
         let y = drawSectionTitle(pdf, 'INFORMACIÓN ADMINISTRATIVA', startY, pageWidth, margin);
 
-        y = drawLabelValue(pdf, 'N° Factura:', solicitud.factura ? `${solicitud.factura}` : 'N/A', y, margin, pageWidth);
+        y = drawLabelValue(pdf, 'N° Factura:', solicitud.factura ? String(solicitud.factura) : 'N/A', y, margin, pageWidth);
+
+        if (solicitud.factura_dist) {
+            y = drawLabelValue(pdf, 'Factura Distribuidor:', String(solicitud.factura_dist), y, margin, pageWidth);
+        }
+
         y = drawLabelValue(pdf, 'Fecha Factura:', solicitud.fecha_fact ? formatDate(solicitud.fecha_fact) : 'N/A', y, margin, pageWidth);
 
+        if (solicitud.facturable) {
+            y = drawLabelValue(pdf, 'Facturable:', getLabel(solicitud.facturable), y, margin, pageWidth);
+        }
+
+        // Estado de garantía
         if (y % 40 < 20) {
             pdf.setFillColor(248, 248, 248);
             pdf.rect(margin, y - 12, pageWidth - margin * 2, 20, 'F');
@@ -243,22 +282,48 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
 
         y += 30;
 
+        // Sección para resolución técnica (MODIFICACIÓN INICIA AQUÍ)
+        const resolutionTitleY = y;
         y = drawSectionTitle(pdf, 'RESOLUCIÓN TÉCNICA', y, pageWidth, margin);
         y += 5;
         pdf.setDrawColor(...COLORS.lightText);
         pdf.setLineWidth(0.5);
-        pdf.rect(margin, y, pageWidth - margin * 2, 80, 'S');
 
-        for (let i = 1; i <= 4; i++) {
-            pdf.setDrawColor(220, 220, 220);
-            pdf.line(margin, y + (i * 20), pageWidth - margin, y + (i * 20));
-        }
+        const text = getLabel(solicitud.resolucion_tecnica, ''); // Asume que tienes un campo 'resolucion_tecnica'
+        const maxWidth = pageWidth - margin * 2;
+        const lineHeight = 15;
+        const splittedText = pdf.splitTextToSize(text, maxWidth - 10); // небольшой отступ
 
-        y += 95;
+        const startYRect = y;
+        const rectHeight = splittedText.length * lineHeight + 10;
+        pdf.rect(margin, startYRect, maxWidth, rectHeight, 'S');
 
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(...COLORS.text);
+        let currentY = y + 5;
+        splittedText.forEach(line => {
+            // MODIFICACIÓN: Calcular el espacio disponible considerando el footer
+            if (currentY + lineHeight > pageHeight - 50) {
+                pdf.addPage();
+                addHeaderToPdf(pdf, pageWidth); // Re-add header
+                // MODIFICACIÓN: Resetear Y después del encabezado
+                currentY = 130 + 10; // Después del header + un pequeño margen
+            }
+            pdf.text(line, margin + 5, currentY);
+            currentY += lineHeight;
+        });
+
+        // MODIFICACIÓN: Actualizar y después de agregar el texto
+        y = currentY + 10;
+
+        // Sección para firmas
         const firmaOffset = 120;
         pdf.setDrawColor(...COLORS.secondary);
         pdf.setLineWidth(0.5);
+
+        // MODIFICACIÓN: Asegurar que las firmas no se superpongan si la resolución es larga
+        const firmaY = Math.max(y + 20, pageHeight - 80); // Asegura espacio para el footer
+        y = firmaY - 20; // Ajusta y para la línea de firma
 
         pdf.line(margin + 50, y, margin + 50 + firmaOffset, y);
         pdf.setTextColor(...COLORS.text);
@@ -290,10 +355,7 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
 
     const handleExportPDF = async () => {
         try {
-            message.loading({
-                content: 'Generando PDF...',
-                key: 'pdfLoading'
-            });
+            message.loading({ content: 'Generando PDF...', key: 'pdfLoading' });
 
             const pdf = createPdfDocument();
             const pageWidth = pdf.internal.pageSize.getWidth();
@@ -309,19 +371,11 @@ const SolicitudViewPdf = ({ solicitud, tecnicoAsignado, estadoAsignado, garantia
 
             pdf.save(`solicitud_${solicitud.id}.pdf`);
 
-            message.success({
-                content: 'PDF generado correctamente',
-                key: 'pdfLoading'
-            });
-
+            message.success({ content: 'PDF generado correctamente', key: 'pdfLoading' });
             if (onFinish) onFinish();
         } catch (error) {
             console.error('Error al generar PDF:', error);
-            message.error({
-                content: 'Error al generar el PDF: ' + error.message,
-                key: 'pdfLoading'
-            });
-
+            message.error({ content: 'Error al generar el PDF: ' + error.message, key: 'pdfLoading' });
             if (onFinish) onFinish();
         }
     };

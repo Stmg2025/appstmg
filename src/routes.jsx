@@ -48,6 +48,10 @@ import ClienteCreate from './pages/Clientes/ClienteCreate';
 import ClienteView from './pages/Clientes/ClienteView';
 import ClienteEdit from './pages/Clientes/ClienteEdit';
 
+// Facturas
+import FacturaDashboard from './pages/Facturas/FacturaDashboard';
+import FacturaBusqueda from './pages/Facturas/FacturaBusqueda';
+
 // Dashboard
 import Dashboard from './pages/Dashboard/Dashboard';
 
@@ -281,6 +285,28 @@ const AppRoutes = () => {
                     <ProtectedRoute>
                         <MainLayout>
                             <SolicitudEdit />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* Rutas protegidas de Facturas */}
+            <Route
+                path="/facturas"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <FacturaDashboard />
+                        </MainLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/facturas/busqueda"
+                element={
+                    <ProtectedRoute>
+                        <MainLayout>
+                            <FacturaBusqueda />
                         </MainLayout>
                     </ProtectedRoute>
                 }

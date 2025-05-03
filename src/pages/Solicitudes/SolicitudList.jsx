@@ -1,77 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, message, Typography, Input, Card, Empty, Select, Row, Col, Tag, Badge, Tooltip } from 'antd';
-import { PlusOutlined, EditOutlined, EyeOutlined, SearchOutlined, ReloadOutlined, FilterOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { Table, Button, Space, message, Typography, Input, Card, Empty, Select, Row, Col, Tag, Badge, Tooltip, DatePicker } from 'antd';
+import { PlusOutlined, EditOutlined, EyeOutlined, SearchOutlined, ReloadOutlined, FilterOutlined, CalendarOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import moment from 'moment';
 import solicitudService from '../../services/solicitudService';
 import tecnicoService from '../../services/tecnicoService';
 import estadoSolicitudService from '../../services/estadoSolicitudService';
+import clienteService from '../../services/clienteService';
+import { formatRut, REGIONES, getPrioridadColor, getColorByEstadoNombre, garantiaActiva } from './constants';
 
 const { Title } = Typography;
 const { Option } = Select;
-
-// Mapeo de regiones
-const REGIONES = {
-    '1': 'Primera Región (de Tarapacá)',
-    '2': 'Segunda Región (de Antofagasta)',
-    '3': 'Tercera Región (de Atacama)',
-    '4': 'Cuarta Región (de Coquimbo)',
-    '5': 'Quinta Región (de Valparaíso)',
-    '6': 'Sexta Región (del Libertador B.O higgins)',
-    '7': 'Séptima Región (del Maule)',
-    '8': 'Octava Región (del Bío-Bío)',
-    '9': 'Novena Región (de la Araucanía)',
-    '10': 'Décima Región (de los Lagos)',
-    '11': 'Undécima Región (de Aisén del General Ca)',
-    '12': 'Duodécima Región (de Magallanes y de la)',
-    '13': 'Región Metropolitana (de Santiago)',
-    '14': 'Decimocuarta Región de los Rios',
-    '15': 'Decimoquinta Región de Arica y Parinacota'
-};
-
-// Función para formatear RUT chileno
-const formatRut = (rut) => {
-    if (!rut) return 'N/A';
-
-    // Calcular dígito verificador
-    const calcularDV = (rutNum) => {
-        let suma = 0;
-        let multiplo = 2;
-
-        for (let i = rutNum.length - 1; i >= 0; i--) {
-            suma += parseInt(rutNum.charAt(i)) * multiplo;
-            multiplo = multiplo < 7 ? multiplo + 1 : 2;
-        }
-
-        let dvCalculado = 11 - (suma % 11);
-
-        if (dvCalculado === 11) return '0';
-        if (dvCalculado === 10) return 'K';
-
-        return dvCalculado.toString();
-    };
-
-    // Formatear RUT con puntos y guión
-    let rutFormateado = '';
-    const dv = calcularDV(rut);
-
-    for (let i = rut.length - 1; i >= 0; i--) {
-        rutFormateado = rut.charAt(i) + rutFormateado;
-        if ((rut.length - i) % 3 === 0 && i !== 0) {
-            rutFormateado = '.' + rutFormateado;
-        }
-    }
-
-    return rutFormateado + '-' + dv;
-};
-
-// Función para verificar si la garantía está activa (1 año desde la fecha de factura)
-const garantiaActiva = (fechaFactura) => {
-    if (!fechaFactura) return false;
-
-    const fechaLimite = moment(fechaFactura).add(1, 'year');
-    return moment().isBefore(fechaLimite);
-};
+const { RangePicker } = DatePicker;
 
 const SolicitudList = () => {
     const [solicitudes, setSolicitudes] = useState([]);
@@ -94,82 +34,112 @@ const SolicitudList = () => {
     const [showFilters, setShowFilters] = useState(false);
     const [filters, setFilters] = useState({
         tecnicoId: undefined,
-        asignacionTecnico: undefined,
-        tipoTecnico: undefined,
         estadoId: undefined,
-        asignacionEstado: undefined
+        prioridad: undefined,
+        ejecucion: undefined,
+        tipo_cliente: undefined,
+        facturable: undefined,
+        fecha_agendamiento_desde: undefined,
+        fecha_agendamiento_hasta: undefined,
+        cliente: undefined,
+        cliente_contactado: undefined,
+        distribuidor_contactado: undefined,
+        tecnico_confirmado: undefined,
+        reporte_enviado: undefined,
+        codprod: undefined,
+        desprod: undefined
     });
+    const [clientesList, setClientesList] = useState([]);
+    const [loadingClientes, setLoadingClientes] = useState(false);
 
-    // Cargar técnicos para mostrar nombres en lugar de IDs
+    // Cargar técnicos, estados y clientes
     useEffect(() => {
-        const fetchTecnicos = async () => {
-            try {
-                setLoadingTecnicos(true);
-                const response = await tecnicoService.getTecnicos();
-                if (response?.data?.success && Array.isArray(response.data.tecnicos)) {
-                    setTecnicosList(response.data.tecnicos);
+        Promise.all([
+            fetchTecnicos(),
+            fetchEstados(),
+            fetchClientes(),
+            fetchSolicitudes(1, pagination.pageSize)
+        ]);
+    }, []);
 
-                    const tecnicosMap = {};
-                    response.data.tecnicos.forEach(tecnico => {
-                        if (tecnico && tecnico.id) {
-                            tecnicosMap[tecnico.id] = tecnico;
-                        }
-                    });
-                    setTecnicos(tecnicosMap);
-                } else {
-                    console.warn('Formato de respuesta de técnicos inválido:', response?.data);
-                    setTecnicosList([]);
-                    setTecnicos({});
-                }
-            } catch (error) {
-                console.error('Error al cargar técnicos:', error);
+    const fetchTecnicos = async () => {
+        try {
+            setLoadingTecnicos(true);
+            const response = await tecnicoService.getTecnicos();
+
+            if (response?.data?.success && Array.isArray(response.data.tecnicos)) {
+                setTecnicosList(response.data.tecnicos);
+
+                const tecnicosMap = {};
+                response.data.tecnicos.forEach(tecnico => {
+                    if (tecnico && tecnico.id) {
+                        tecnicosMap[tecnico.id] = tecnico;
+                    }
+                });
+                setTecnicos(tecnicosMap);
+            } else {
                 setTecnicosList([]);
                 setTecnicos({});
-            } finally {
-                setLoadingTecnicos(false);
             }
-        };
+        } catch (error) {
+            console.error('Error al cargar técnicos:', error);
+            setTecnicosList([]);
+            setTecnicos({});
+        } finally {
+            setLoadingTecnicos(false);
+        }
+    };
 
-        fetchTecnicos();
-    }, []);
+    const fetchEstados = async () => {
+        try {
+            setLoadingEstados(true);
+            const response = await estadoSolicitudService.getEstados();
 
-    // Cargar estados para mostrar nombres en lugar de IDs
-    useEffect(() => {
-        const fetchEstados = async () => {
-            try {
-                setLoadingEstados(true);
-                const response = await estadoSolicitudService.getEstados();
+            if (response?.data?.success && Array.isArray(response.data.estados)) {
+                setEstadosList(response.data.estados);
 
-                if (response?.data?.success && Array.isArray(response.data.estados)) {
-                    setEstadosList(response.data.estados);
-
-                    const estadosMap = {};
-                    response.data.estados.forEach(estado => {
-                        if (estado && estado.id) {
-                            estadosMap[estado.id] = estado;
-                        }
-                    });
-                    setEstados(estadosMap);
-                } else {
-                    console.warn('Formato de respuesta de estados inválido:', response?.data);
-                    setEstadosList([]);
-                    setEstados({});
-                }
-            } catch (error) {
-                console.error('Error al cargar estados:', error);
+                const estadosMap = {};
+                response.data.estados.forEach(estado => {
+                    if (estado && estado.id) {
+                        estadosMap[estado.id] = estado;
+                    }
+                });
+                setEstados(estadosMap);
+            } else {
                 setEstadosList([]);
                 setEstados({});
-            } finally {
-                setLoadingEstados(false);
             }
-        };
+        } catch (error) {
+            console.error('Error al cargar estados:', error);
+            setEstadosList([]);
+            setEstados({});
+        } finally {
+            setLoadingEstados(false);
+        }
+    };
 
-        fetchEstados();
-    }, []);
+    const fetchClientes = async () => {
+        try {
+            setLoadingClientes(true);
+            const response = await clienteService.getAllClientes(1, 100, true);
 
-    useEffect(() => {
-        fetchSolicitudes(1, pagination.pageSize);
-    }, []);
+            if (response?.data?.success && Array.isArray(response.data.clientes)) {
+                const clientes = response.data.clientes.map(cliente => ({
+                    id: cliente.codaux,
+                    nombre: cliente.nomaux,
+                    rut: formatRut(cliente.codaux)
+                }));
+                setClientesList(clientes);
+            } else {
+                setClientesList([]);
+            }
+        } catch (error) {
+            console.error('Error al cargar clientes:', error);
+            setClientesList([]);
+        } finally {
+            setLoadingClientes(false);
+        }
+    };
 
     const fetchSolicitudes = async (page = 1, pageSize = pagination.pageSize) => {
         try {
@@ -200,9 +170,24 @@ const SolicitudList = () => {
         }
     };
 
+    const handleDateRangeChange = (dates) => {
+        if (dates && dates.length === 2) {
+            setFilters({
+                ...filters,
+                fecha_agendamiento_desde: dates[0].format('YYYY-MM-DD'),
+                fecha_agendamiento_hasta: dates[1].format('YYYY-MM-DD')
+            });
+        } else {
+            setFilters({
+                ...filters,
+                fecha_agendamiento_desde: undefined,
+                fecha_agendamiento_hasta: undefined
+            });
+        }
+    };
+
     const handleSearch = async () => {
-        if (!searchText.trim() && !filters.tecnicoId && !filters.asignacionTecnico
-            && !filters.tipoTecnico && !filters.estadoId && !filters.asignacionEstado) {
+        if (!searchText.trim() && !Object.values(filters).some(value => value !== undefined && value !== '')) {
             fetchSolicitudes(1, pagination.pageSize);
             return;
         }
@@ -212,77 +197,30 @@ const SolicitudList = () => {
             setLoading(true);
 
             const searchParams = {
-                searchText: searchText
+                searchText: searchText,
+                ...Object.fromEntries(
+                    Object.entries(filters).filter(([_, value]) => value !== undefined && value !== '')
+                )
             };
-
-            // Añadir filtros de técnicos
-            if (filters.tecnicoId) searchParams.tecnicoId = filters.tecnicoId;
-            if (filters.asignacionTecnico) searchParams.asignacionTecnico = filters.asignacionTecnico;
-            if (filters.tipoTecnico) searchParams.tipoTecnico = filters.tipoTecnico;
-
-            // Añadir filtros de estados
-            if (filters.estadoId) searchParams.estadoId = filters.estadoId;
-            if (filters.asignacionEstado) searchParams.asignacionEstado = filters.asignacionEstado;
 
             const response = await solicitudService.searchSolicitudes(searchParams);
 
             if (response?.data?.success) {
-                let filteredResults = response.data.solicitudes || [];
-
-                // Aplicar filtros de técnicos en el cliente (por si el backend no lo soporta)
-                if (filters.tecnicoId && filteredResults.length > 0) {
-                    filteredResults = filteredResults.filter(s => s.tecnico_asignado === parseInt(filters.tecnicoId));
-                }
-
-                if (filters.asignacionTecnico && filteredResults.length > 0) {
-                    if (filters.asignacionTecnico === 'con') {
-                        filteredResults = filteredResults.filter(s => s.tecnico_asignado);
-                    } else if (filters.asignacionTecnico === 'sin') {
-                        filteredResults = filteredResults.filter(s => !s.tecnico_asignado);
-                    }
-                }
-
-                if (filters.tipoTecnico && filteredResults.length > 0) {
-                    filteredResults = filteredResults.filter(s => {
-                        try {
-                            if (!s.tecnico_asignado) return false;
-                            const tecnico = tecnicos[s.tecnico_asignado];
-                            return tecnico && tecnico.tipo_tecnico === filters.tipoTecnico;
-                        } catch (error) {
-                            console.error('Error en filtro de tipo de técnico:', error);
-                            return false;
-                        }
-                    });
-                }
-
-                // Aplicar filtros de estados en el cliente
-                if (filters.estadoId && filteredResults.length > 0) {
-                    filteredResults = filteredResults.filter(s => s.estado_id === parseInt(filters.estadoId));
-                }
-
-                if (filters.asignacionEstado && filteredResults.length > 0) {
-                    if (filters.asignacionEstado === 'con') {
-                        filteredResults = filteredResults.filter(s => s.estado_id);
-                    } else if (filters.asignacionEstado === 'sin') {
-                        filteredResults = filteredResults.filter(s => !s.estado_id);
-                    }
-                }
-
-                setSolicitudes(filteredResults);
-
+                setSolicitudes(response.data.solicitudes || []);
                 setPagination({
                     ...pagination,
                     current: 1,
-                    total: filteredResults.length,
+                    total: response.data.count || 0,
                 });
-
-                message.success(`Se encontraron ${filteredResults.length} resultados`);
+                message.success(`Se encontraron ${response.data.count || 0} resultados`);
             } else {
                 message.error(response?.data?.message || 'Error al realizar la búsqueda');
+                setSolicitudes([]);
             }
         } catch (error) {
             console.error('Error en búsqueda:', error);
             message.error('Error al realizar la búsqueda');
+            setSolicitudes([]);
         } finally {
             setLoading(false);
             setSearching(false);
@@ -293,10 +231,20 @@ const SolicitudList = () => {
         setSearchText('');
         setFilters({
             tecnicoId: undefined,
-            asignacionTecnico: undefined,
-            tipoTecnico: undefined,
             estadoId: undefined,
-            asignacionEstado: undefined
+            prioridad: undefined,
+            ejecucion: undefined,
+            tipo_cliente: undefined,
+            facturable: undefined,
+            fecha_agendamiento_desde: undefined,
+            fecha_agendamiento_hasta: undefined,
+            cliente: undefined,
+            cliente_contactado: undefined,
+            distribuidor_contactado: undefined,
+            tecnico_confirmado: undefined,
+            reporte_enviado: undefined,
+            codprod: undefined,
+            desprod: undefined
         });
         setSearching(false);
         fetchSolicitudes(1, pagination.pageSize);
@@ -307,19 +255,10 @@ const SolicitudList = () => {
         fetchSolicitudes(newPagination.current, newPagination.pageSize);
     };
 
-    // Función para determinar el color del estado basado en su nombre
-    const getColorByEstadoNombre = (nombre) => {
-        try {
-            const nombreLower = (nombre || '').toLowerCase();
-            if (nombreLower.includes('pendiente')) return 'orange';
-            if (nombreLower.includes('proceso') || nombreLower.includes('progreso')) return 'blue';
-            if (nombreLower.includes('completa') || nombreLower.includes('finaliza') || nombreLower.includes('termina')) return 'green';
-            if (nombreLower.includes('cancela') || nombreLower.includes('rechaza')) return 'red';
-            return 'default';
-        } catch (error) {
-            console.error('Error al determinar color del estado:', error);
-            return 'default';
-        }
+    const renderSeguimientoTag = (value) => {
+        if (value === 'S') return <Badge status="success" text="Sí" />;
+        if (value === 'N') return <Badge status="error" text="No" />;
+        return <Badge status="default" text="N/D" />;
     };
 
     const columns = [
@@ -327,51 +266,47 @@ const SolicitudList = () => {
             title: 'ID',
             dataIndex: 'id',
             key: 'id',
-            width: 100,
-            sorter: (a, b) => {
-                try {
-                    return (a.id || 0) - (b.id || 0);
-                } catch (error) {
-                    return 0;
-                }
-            },
+            width: 80,
+            sorter: (a, b) => (a.id || 0) - (b.id || 0),
         },
         {
             title: 'Cliente',
             key: 'cliente',
-            width: 200,
-            render: (record) => {
-                return (
-                    <div>
-                        <div>{record.nomaux || 'N/A'}</div>
-                        {record.codaux && (
-                            <small style={{ color: '#888' }}>RUT: {formatRut(record.codaux)}</small>
-                        )}
-                    </div>
-                );
-            },
-            sorter: (a, b) => {
-                try {
-                    return (a.nomaux || '').localeCompare(b.nomaux || '');
-                } catch (error) {
-                    return 0;
-                }
-            },
+            width: 180,
+            render: (record) => (
+                <div>
+                    <div>{record.nomaux || 'N/A'}</div>
+                    {record.codaux && <small style={{ color: '#888' }}>RUT: {formatRut(record.codaux)}</small>}
+                    {record.tipo_cliente && <div><Tag size="small">{record.tipo_cliente}</Tag></div>}
+                </div>
+            ),
+            sorter: (a, b) => (a.nomaux || '').localeCompare(b.nomaux || ''),
+            filters: clientesList.map(cliente => ({
+                text: `${cliente.nombre} (${cliente.rut})`,
+                value: cliente.id
+            })),
+            onFilter: (value, record) => record.codaux === value,
         },
         {
             title: 'Descripción',
-            dataIndex: 'desc_motivo',
-            key: 'desc_motivo',
+            key: 'descripcion',
             ellipsis: true,
-            width: 250,
+            width: 180,
+            render: (record) => (
+                <div>
+                    <div style={{ marginBottom: 5 }}>{record.desc_motivo || 'N/A'}</div>
+                    {record.codprod && <div><small>Código: {record.codprod}</small></div>}
+                    {record.desprod && <div><small>Producto: {record.desprod}</small></div>}
+                </div>
+            )
         },
         {
             title: 'Fecha',
             key: 'fecha',
             width: 120,
             render: (record) => {
-                const hasFecha = record.fecha ? true : false;
-                const hasFactura = record.fecha_fact ? true : false;
+                const hasFecha = !!record.fecha;
+                const hasFactura = !!record.fecha_fact;
                 const isGarantiaActiva = hasFactura ? garantiaActiva(record.fecha_fact) : false;
 
                 return (
@@ -381,39 +316,34 @@ const SolicitudList = () => {
                             <Tooltip title={isGarantiaActiva ? "Garantía activa" : "Garantía vencida"}>
                                 <Badge
                                     status={isGarantiaActiva ? "success" : "error"}
-                                    text={
-                                        <small style={{ color: '#888' }}>
-                                            Fact: {new Date(record.fecha_fact).toLocaleDateString()}
-                                        </small>
-                                    }
+                                    text={<small style={{ color: '#888' }}>Fact: {new Date(record.fecha_fact).toLocaleDateString()}</small>}
                                 />
+                            </Tooltip>
+                        )}
+                        {record.fecha_agendamiento && (
+                            <Tooltip title="Fecha agendada">
+                                <div>
+                                    <CalendarOutlined style={{ color: '#1890ff', marginRight: 5 }} />
+                                    <small style={{ color: '#1890ff' }}>{new Date(record.fecha_agendamiento).toLocaleDateString()}</small>
+                                </div>
                             </Tooltip>
                         )}
                     </div>
                 );
             },
-            sorter: (a, b) => {
-                try {
-                    return new Date(a.fecha || 0) - new Date(b.fecha || 0);
-                } catch (error) {
-                    return 0;
-                }
-            },
+            sorter: (a, b) => new Date(a.fecha || 0) - new Date(b.fecha || 0),
         },
         {
             title: 'Ubicación',
             key: 'ubicacion',
-            width: 140,
+            width: 120,
             render: (record) => {
                 const regionNombre = record.region ? REGIONES[record.region] || `Región ${record.region}` : 'N/A';
-                const areaTrabajo = record.area_trab ?
-                    (record.area_trab === 'PLANTA' ? 'Taller' : record.area_trab) : 'N/A';
+                const areaTrabajo = record.area_trab ? (record.area_trab === 'PLANTA' ? 'Taller' : record.area_trab) : 'N/A';
 
                 return (
                     <div>
-                        <div>
-                            <Tag color="blue">{areaTrabajo}</Tag>
-                        </div>
+                        <div><Tag color="blue">{areaTrabajo}</Tag></div>
                         <Tooltip title={regionNombre}>
                             <small style={{ color: '#888' }}>{regionNombre.substring(0, 15)}...</small>
                         </Tooltip>
@@ -422,23 +352,68 @@ const SolicitudList = () => {
             },
         },
         {
+            title: 'Seguimiento',
+            key: 'seguimiento',
+            width: 120,
+            render: (record) => (
+                <div>
+                    <div><Tooltip title="Cliente Contactado"><span>C: {renderSeguimientoTag(record.cliente_contactado)}</span></Tooltip></div>
+                    <div><Tooltip title="Distribuidor Contactado"><span>D: {renderSeguimientoTag(record.distribuidor_contactado)}</span></Tooltip></div>
+                    <div><Tooltip title="Técnico Confirmado"><span>T: {renderSeguimientoTag(record.tecnico_confirmado)}</span></Tooltip></div>
+                    <div><Tooltip title="Reporte Enviado"><span>R: {renderSeguimientoTag(record.reporte_enviado)}</span></Tooltip></div>
+                </div>
+            ),
+            filters: [
+                { text: 'Cliente Contactado - Sí', value: 'cliente_contactado=S' },
+                { text: 'Cliente Contactado - No', value: 'cliente_contactado=N' },
+                { text: 'Distribuidor Contactado - Sí', value: 'distribuidor_contactado=S' },
+                { text: 'Distribuidor Contactado - No', value: 'distribuidor_contactado=N' },
+                { text: 'Técnico Confirmado - Sí', value: 'tecnico_confirmado=S' },
+                { text: 'Técnico Confirmado - No', value: 'tecnico_confirmado=N' },
+                { text: 'Reporte Enviado - Sí', value: 'reporte_enviado=S' },
+                { text: 'Reporte Enviado - No', value: 'reporte_enviado=N' },
+            ],
+            onFilter: (value, record) => {
+                const [campo, estado] = value.split('=');
+                return record[campo] === estado;
+            },
+        },
+        {
+            title: 'Prioridad',
+            key: 'prioridad',
+            width: 100,
+            render: (record) => {
+                if (!record.prioridad) return 'No definida';
+                return <Tag color={getPrioridadColor(record.prioridad)}>{record.prioridad}</Tag>;
+            },
+            filters: [
+                { text: 'Normal', value: 'Normal' },
+                { text: 'Urgente', value: 'Urgente' },
+                { text: 'Atrasada', value: 'Atrasado' }
+            ],
+            onFilter: (value, record) => record.prioridad === value
+        },
+        {
             title: 'Estado',
             key: 'estado',
-            width: 120,
+            width: 130,
             render: (record) => {
                 try {
-                    // Mostrar el estado de la tabla estado_solicitud si existe
+                    // Estado desde tabla estado_solicitud
                     if (record.estado_id) {
                         const estado = estados[record.estado_id];
                         if (!estado) return `ID: ${record.estado_id}`;
 
                         return (
-                            <Tag color={getColorByEstadoNombre(estado.nombre)}>
-                                {estado.nombre || `Estado ${record.estado_id}`}
-                            </Tag>
+                            <div>
+                                <Tag color={getColorByEstadoNombre(estado.nombre)}>
+                                    {estado.nombre || `Estado ${record.estado_id}`}
+                                </Tag>
+                                {record.ejecucion && <div style={{ marginTop: 4 }}><small>{record.ejecucion}</small></div>}
+                            </div>
                         );
                     }
-                    // Si no hay estado_id, mostrar el estado antiguo
+                    // Estado antiguo
                     else if (record.estado) {
                         const estadoMap = {
                             'AP': { text: 'Aprobada', color: 'green' },
@@ -447,18 +422,21 @@ const SolicitudList = () => {
                             'FI': { text: 'Finalizada', color: 'blue' }
                         };
                         const estadoInfo = estadoMap[record.estado] || { text: record.estado, color: 'default' };
-                        return <Tag color={estadoInfo.color}>{estadoInfo.text}</Tag>;
+                        return (
+                            <div>
+                                <Tag color={estadoInfo.color}>{estadoInfo.text}</Tag>
+                                {record.ejecucion && <div style={{ marginTop: 4 }}><small>{record.ejecucion}</small></div>}
+                            </div>
+                        );
                     }
-
                     return 'No asignado';
                 } catch (error) {
-                    console.error('Error al renderizar estado:', error);
                     return 'Error';
                 }
             },
         },
         {
-            title: 'Técnico Asignado',
+            title: 'Técnico',
             key: 'tecnico_asignado',
             width: 150,
             render: (record) => {
@@ -475,7 +453,6 @@ const SolicitudList = () => {
                         </div>
                     );
                 } catch (error) {
-                    console.error('Error al renderizar técnico:', error);
                     return 'Error';
                 }
             },
@@ -488,14 +465,10 @@ const SolicitudList = () => {
             render: (_, record) => (
                 <Space size="small">
                     <Link to={`/solicitudes/${record.id}`}>
-                        <Button type="primary" size="small" icon={<EyeOutlined />}>
-                            Ver
-                        </Button>
+                        <Button type="primary" size="small" icon={<EyeOutlined />}>Ver</Button>
                     </Link>
                     <Link to={`/solicitudes/edit/${record.id}`}>
-                        <Button size="small" icon={<EditOutlined />}>
-                            Editar
-                        </Button>
+                        <Button size="small" icon={<EditOutlined />}>Editar</Button>
                     </Link>
                 </Space>
             ),
@@ -508,9 +481,7 @@ const SolicitudList = () => {
                 <Title level={2}>Solicitudes de Servicio</Title>
                 <Space>
                     <Link to="/solicitudes/create">
-                        <Button type="primary" icon={<PlusOutlined />}>
-                            Nueva Solicitud
-                        </Button>
+                        <Button type="primary" icon={<PlusOutlined />}>Nueva Solicitud</Button>
                     </Link>
                 </Space>
             </div>
@@ -518,7 +489,7 @@ const SolicitudList = () => {
             <Card style={{ marginBottom: 16 }}>
                 <Space style={{ width: '100%', marginBottom: 16 }}>
                     <Input
-                        placeholder="Buscar en todos los campos (ID, cliente, descripción, estado, etc.)"
+                        placeholder="Buscar en todos los campos (ID, cliente, descripción, etc.)"
                         prefix={<SearchOutlined />}
                         value={searchText}
                         onChange={e => setSearchText(e.target.value)}
@@ -526,19 +497,8 @@ const SolicitudList = () => {
                         style={{ width: 500 }}
                         allowClear
                     />
-                    <Button
-                        type="primary"
-                        onClick={handleSearch}
-                        loading={searching}
-                    >
-                        Buscar
-                    </Button>
-                    <Button
-                        onClick={resetSearch}
-                        icon={<ReloadOutlined />}
-                    >
-                        Restablecer
-                    </Button>
+                    <Button type="primary" onClick={handleSearch} loading={searching}>Buscar</Button>
+                    <Button onClick={resetSearch} icon={<ReloadOutlined />}>Restablecer</Button>
                     <Button
                         icon={<FilterOutlined />}
                         onClick={() => setShowFilters(!showFilters)}
@@ -550,8 +510,29 @@ const SolicitudList = () => {
 
                 {showFilters && (
                     <div>
-                        <Row gutter={16} style={{ marginTop: 8, marginBottom: 8 }}>
-                            <Col span={8}>
+                        <Row gutter={[16, 16]} style={{ marginTop: 8, marginBottom: 8 }}>
+                            {/* Cliente */}
+                            <Col xs={24} lg={8}>
+                                <Select
+                                    placeholder="Filtrar por cliente"
+                                    style={{ width: '100%' }}
+                                    value={filters.cliente}
+                                    onChange={(value) => setFilters({ ...filters, cliente: value })}
+                                    allowClear
+                                    showSearch
+                                    optionFilterProp="children"
+                                    loading={loadingClientes}
+                                >
+                                    {clientesList.map(cliente => (
+                                        <Option key={cliente.id} value={cliente.id}>
+                                            {cliente.nombre} ({cliente.rut})
+                                        </Option>
+                                    ))}
+                                </Select>
+                            </Col>
+
+                            {/* Técnico */}
+                            <Col xs={24} lg={8}>
                                 <Select
                                     placeholder="Filtrar por técnico"
                                     style={{ width: '100%' }}
@@ -561,42 +542,17 @@ const SolicitudList = () => {
                                     showSearch
                                     optionFilterProp="children"
                                     loading={loadingTecnicos}
-                                    notFoundContent={loadingTecnicos ? <span>Cargando...</span> : <span>No hay técnicos disponibles</span>}
                                 >
-                                    {(tecnicosList || []).map(tecnico => (
+                                    {tecnicosList.map(tecnico => (
                                         <Option key={tecnico.id} value={tecnico.id}>
-                                            {tecnico.nombre_completo || `Técnico ${tecnico.id}`} - {tecnico.tipo_tecnico || 'Sin tipo'}
+                                            {tecnico.nombre_completo || `Técnico ${tecnico.id}`}
                                         </Option>
                                     ))}
                                 </Select>
                             </Col>
-                            <Col span={8}>
-                                <Select
-                                    placeholder="Filtrar por asignación de técnico"
-                                    style={{ width: '100%' }}
-                                    value={filters.asignacionTecnico}
-                                    onChange={(value) => setFilters({ ...filters, asignacionTecnico: value })}
-                                    allowClear
-                                >
-                                    <Option value="con">Con técnico asignado</Option>
-                                    <Option value="sin">Sin técnico asignado</Option>
-                                </Select>
-                            </Col>
-                            <Col span={8}>
-                                <Select
-                                    placeholder="Filtrar por tipo de técnico"
-                                    style={{ width: '100%' }}
-                                    value={filters.tipoTecnico}
-                                    onChange={(value) => setFilters({ ...filters, tipoTecnico: value })}
-                                    allowClear
-                                >
-                                    <Option value="Interno">Técnicos internos</Option>
-                                    <Option value="Externo">Técnicos externos</Option>
-                                </Select>
-                            </Col>
-                        </Row>
-                        <Row gutter={16} style={{ marginTop: 8 }}>
-                            <Col span={8}>
+
+                            {/* Estado */}
+                            <Col xs={24} lg={8}>
                                 <Select
                                     placeholder="Filtrar por estado"
                                     style={{ width: '100%' }}
@@ -606,26 +562,81 @@ const SolicitudList = () => {
                                     showSearch
                                     optionFilterProp="children"
                                     loading={loadingEstados}
-                                    notFoundContent={loadingEstados ? <span>Cargando...</span> : <span>No hay estados disponibles</span>}
                                 >
-                                    {(estadosList || []).map(estado => (
+                                    {estadosList.map(estado => (
                                         <Option key={estado.id} value={estado.id}>
                                             {estado.nombre || `Estado ${estado.id}`}
                                         </Option>
                                     ))}
                                 </Select>
                             </Col>
-                            <Col span={8}>
+
+                            {/* Filtros adicionales */}
+                            <Col xs={24} lg={8}>
                                 <Select
-                                    placeholder="Filtrar por asignación de estado"
+                                    placeholder="Filtrar por prioridad"
                                     style={{ width: '100%' }}
-                                    value={filters.asignacionEstado}
-                                    onChange={(value) => setFilters({ ...filters, asignacionEstado: value })}
+                                    value={filters.prioridad}
+                                    onChange={(value) => setFilters({ ...filters, prioridad: value })}
                                     allowClear
                                 >
-                                    <Option value="con">Con estado asignado</Option>
-                                    <Option value="sin">Sin estado asignado</Option>
+                                    <Option value="Normal">Normal</Option>
+                                    <Option value="Urgente">Urgente</Option>
+                                    <Option value="Atrasado">Atrasada</Option>
                                 </Select>
+                            </Col>
+                            <Col xs={24} lg={8}>
+                                <Select
+                                    placeholder="Filtrar por tipo de cliente"
+                                    style={{ width: '100%' }}
+                                    value={filters.tipo_cliente}
+                                    onChange={(value) => setFilters({ ...filters, tipo_cliente: value })}
+                                    allowClear
+                                >
+                                    <Option value="Final">Final</Option>
+                                    <Option value="Retail">Retail</Option>
+                                    <Option value="Distribuidor">Distribuidor</Option>
+                                </Select>
+                            </Col>
+
+                            {/* Seguimiento */}
+                            <Col xs={24} lg={12}>
+                                <Row gutter={[16, 16]}>
+                                    <Col span={12}>
+                                        <Select
+                                            placeholder="Cliente contactado"
+                                            style={{ width: '100%' }}
+                                            value={filters.cliente_contactado}
+                                            onChange={(value) => setFilters({ ...filters, cliente_contactado: value })}
+                                            allowClear
+                                        >
+                                            <Option value="S">Sí</Option>
+                                            <Option value="N">No</Option>
+                                        </Select>
+                                    </Col>
+                                    <Col span={12}>
+                                        <Select
+                                            placeholder="Técnico confirmado"
+                                            style={{ width: '100%' }}
+                                            value={filters.tecnico_confirmado}
+                                            onChange={(value) => setFilters({ ...filters, tecnico_confirmado: value })}
+                                            allowClear
+                                        >
+                                            <Option value="S">Sí</Option>
+                                            <Option value="N">No</Option>
+                                        </Select>
+                                    </Col>
+                                </Row>
+                            </Col>
+
+                            {/* Fecha agendamiento */}
+                            <Col xs={24} lg={12}>
+                                <RangePicker
+                                    style={{ width: '100%' }}
+                                    placeholder={['Fecha agendamiento desde', 'Fecha agendamiento hasta']}
+                                    onChange={handleDateRangeChange}
+                                    format="YYYY-MM-DD"
+                                />
                             </Col>
                         </Row>
                     </div>
@@ -636,13 +647,11 @@ const SolicitudList = () => {
                 columns={columns}
                 dataSource={solicitudes}
                 rowKey="id"
-                loading={loading || loadingTecnicos || loadingEstados}
+                loading={loading || loadingTecnicos || loadingEstados || loadingClientes}
                 pagination={searching ? false : pagination}
                 onChange={handleTableChange}
-                scroll={{ x: 920 }}
-                locale={{
-                    emptyText: <Empty description="No hay solicitudes disponibles" />
-                }}
+                scroll={{ x: 1100 }}
+                locale={{ emptyText: <Empty description="No hay solicitudes disponibles" /> }}
             />
         </div>
     );

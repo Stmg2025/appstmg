@@ -60,6 +60,14 @@ const Header = () => {
             ]
         },
         {
+            key: 'facturas',
+            label: 'Facturas',
+            children: [
+                { key: 'facturasAnalisis', label: <Link to="/facturas">Dashboard de Facturas</Link> },
+                { key: 'facturasBusqueda', label: <Link to="/facturas/busqueda">Búsqueda Avanzada</Link> }
+            ]
+        },
+        {
             key: 'clientes',
             label: 'Clientes',
             children: [
@@ -75,6 +83,7 @@ const Header = () => {
         if (path.includes('/users') || path.includes('/roles') || path.includes('/tecnicos') || path.includes('/estados-solicitud')) return 'administracion';
         if (path.includes('/inventory')) return 'inventory';
         if (path.includes('/solicitudes')) return 'solicitudes';
+        if (path.includes('/facturas')) return 'facturas';
         if (path.includes('/clientes')) return 'clientes';
         return '';
     };

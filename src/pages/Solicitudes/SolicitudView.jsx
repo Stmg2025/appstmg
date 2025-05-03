@@ -1,86 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Card, Descriptions, Button, Spin, message, Typography, Tag, Row, Col, Divider, Space, Tabs, Badge } from 'antd';
-import { EditOutlined, ArrowLeftOutlined, PrinterOutlined, UserOutlined, ToolOutlined, ScheduleOutlined, CheckOutlined, FileTextOutlined, FilePdfOutlined, CalendarOutlined, EnvironmentOutlined, InfoCircleOutlined, IdcardOutlined, TeamOutlined } from '@ant-design/icons';
+import {
+    EditOutlined, ArrowLeftOutlined, PrinterOutlined, UserOutlined, ToolOutlined, ScheduleOutlined, CheckOutlined,
+    FileTextOutlined, FilePdfOutlined, CalendarOutlined, EnvironmentOutlined, InfoCircleOutlined, IdcardOutlined,
+    TeamOutlined, FieldTimeOutlined, StarOutlined, MailOutlined, PhoneOutlined, SyncOutlined
+} from '@ant-design/icons';
 import moment from 'moment';
 import solicitudService from '../../services/solicitudService';
 import tecnicoService from '../../services/tecnicoService';
 import estadoSolicitudService from '../../services/estadoSolicitudService';
 import SolicitudViewPdf from './SolicitudViewPdf';
+import { REGIONES, formatRut, getPrioridadColor, getAreaTrabajoLabel, getTipoLabel, formatDate, garantiaActiva, getColorByEstadoNombre } from './constants';
 
 const { Title } = Typography;
 const { TabPane } = Tabs;
-
-// Mapeo de regiones
-const REGIONES = {
-    '1': 'Primera Región (de Tarapacá)',
-    '2': 'Segunda Región (de Antofagasta)',
-    '3': 'Tercera Región (de Atacama)',
-    '4': 'Cuarta Región (de Coquimbo)',
-    '5': 'Quinta Región (de Valparaíso)',
-    '6': 'Sexta Región (del Libertador B.O higgins)',
-    '7': 'Séptima Región (del Maule)',
-    '8': 'Octava Región (del Bío-Bío)',
-    '9': 'Novena Región (de la Araucanía)',
-    '10': 'Décima Región (de los Lagos)',
-    '11': 'Undécima Región (de Aisén del General Ca)',
-    '12': 'Duodécima Región (de Magallanes y de la)',
-    '13': 'Región Metropolitana (de Santiago)',
-    '14': 'Decimocuarta Región de los Rios',
-    '15': 'Decimoquinta Región de Arica y Parinacota'
-};
-
-// Función para formatear RUT chileno
-const formatRut = (rut) => {
-    if (!rut) return 'N/A';
-
-    // Calcular dígito verificador
-    const calcularDV = (rutNum) => {
-        let suma = 0;
-        let multiplo = 2;
-
-        for (let i = rutNum.length - 1; i >= 0; i--) {
-            suma += parseInt(rutNum.charAt(i)) * multiplo;
-            multiplo = multiplo < 7 ? multiplo + 1 : 2;
-        }
-
-        let dvCalculado = 11 - (suma % 11);
-
-        if (dvCalculado === 11) return '0';
-        if (dvCalculado === 10) return 'K';
-
-        return dvCalculado.toString();
-    };
-
-    // Formatear RUT con puntos y guión
-    let rutFormateado = '';
-    const dv = calcularDV(rut);
-
-    for (let i = rut.length - 1; i >= 0; i--) {
-        rutFormateado = rut.charAt(i) + rutFormateado;
-        if ((rut.length - i) % 3 === 0 && i !== 0) {
-            rutFormateado = '.' + rutFormateado;
-        }
-    }
-
-    return rutFormateado + '-' + dv;
-};
-
-// Mapeo de tipos de solicitud
-const getTipoLabel = (tipo) => {
-    const tiposMap = {
-        'Garantia': 'Garantía',
-        'Servicio': 'Servicio',
-        'Mantenimiento': 'Mantenimiento',
-        'Cortesia': 'Cortesía',
-        'Instalacion': 'Instalación',
-        'Reparacion': 'Reparación',
-        'Conversion': 'Conversión',
-        'Logistica': 'Logística'
-    };
-
-    return tiposMap[tipo] || tipo || 'N/A';
-};
 
 const SolicitudView = () => {
     const { id } = useParams();
@@ -97,7 +31,6 @@ const SolicitudView = () => {
             try {
                 setLoading(true);
                 setError(null);
-
                 const response = await solicitudService.getSolicitudById(id);
 
                 if (response?.data?.success && response.data.solicitud) {
@@ -105,25 +38,17 @@ const SolicitudView = () => {
 
                     // Cargar técnico asignado
                     if (response.data.solicitud.tecnico_asignado) {
-                        try {
-                            const tecnicoResponse = await tecnicoService.getTecnicoById(response.data.solicitud.tecnico_asignado);
-                            if (tecnicoResponse?.data?.success) {
-                                setTecnicoAsignado(tecnicoResponse.data.tecnico);
-                            }
-                        } catch (error) {
-                            console.error("Error al obtener datos del técnico:", error);
+                        const tecnicoResponse = await tecnicoService.getTecnicoById(response.data.solicitud.tecnico_asignado);
+                        if (tecnicoResponse?.data?.success) {
+                            setTecnicoAsignado(tecnicoResponse.data.tecnico);
                         }
                     }
 
                     // Cargar estado asignado
                     if (response.data.solicitud.estado_id) {
-                        try {
-                            const estadoResponse = await estadoSolicitudService.getEstadoById(response.data.solicitud.estado_id);
-                            if (estadoResponse?.data?.success) {
-                                setEstadoAsignado(estadoResponse.data.estado);
-                            }
-                        } catch (error) {
-                            console.error("Error al obtener datos del estado:", error);
+                        const estadoResponse = await estadoSolicitudService.getEstadoById(response.data.solicitud.estado_id);
+                        if (estadoResponse?.data?.success) {
+                            setEstadoAsignado(estadoResponse.data.estado);
                         }
                     }
                 } else {
@@ -152,64 +77,28 @@ const SolicitudView = () => {
     const handleExportPDF = () => {
         if (!solicitud) return;
         setShowPdf(true);
-        // SolicitudViewPdf manejará la exportación
     };
 
     const getEstadoTag = (estado) => {
-        try {
-            const estadoMap = {
-                'AP': { text: 'Aprobada', color: 'green' },
-                'PE': { text: 'Pendiente', color: 'orange' },
-                'CA': { text: 'Cancelada', color: 'red' },
-                'FI': { text: 'Finalizada', color: 'blue' }
-            };
-
-            const estadoInfo = estadoMap[estado] || { text: estado || 'Desconocido', color: 'default' };
-            return <Tag color={estadoInfo.color}>{estadoInfo.text}</Tag>;
-        } catch (error) {
-            return <Tag color="default">Error</Tag>;
-        }
+        const estadoMap = {
+            'AP': { text: 'Aprobada', color: 'green' },
+            'PE': { text: 'Pendiente', color: 'orange' },
+            'CA': { text: 'Cancelada', color: 'red' },
+            'FI': { text: 'Finalizada', color: 'blue' }
+        };
+        const estadoInfo = estadoMap[estado] || { text: estado || 'Desconocido', color: 'default' };
+        return <Tag color={estadoInfo.color}>{estadoInfo.text}</Tag>;
     };
 
     const getEstadoAsignadoTag = (estado) => {
-        try {
-            if (!estado || !estado.nombre) return <Tag color="default">No definido</Tag>;
-
-            // Color según el nombre del estado
-            const getColorByNombre = (nombre) => {
-                const nombreLower = (nombre || '').toLowerCase();
-                if (nombreLower.includes('pendiente')) return 'orange';
-                if (nombreLower.includes('proceso') || nombreLower.includes('progreso')) return 'blue';
-                if (nombreLower.includes('completa') || nombreLower.includes('finaliza')) return 'green';
-                if (nombreLower.includes('cancela') || nombreLower.includes('rechaza')) return 'red';
-                return 'default';
-            };
-
-            return <Tag color={getColorByNombre(estado.nombre)}>{estado.nombre}</Tag>;
-        } catch (error) {
-            return <Tag color="default">Error</Tag>;
-        }
+        if (!estado || !estado.nombre) return <Tag color="default">No definido</Tag>;
+        return <Tag color={getColorByEstadoNombre(estado.nombre)}>{estado.nombre}</Tag>;
     };
 
-    const getAreaTrabajoLabel = (area) => {
-        if (!area) return 'N/A';
-        if (area === 'PLANTA') return 'Taller';
-        return area;
-    };
-
-    const formatDate = (dateString) => {
-        try {
-            if (!dateString) return 'No disponible';
-            return new Date(dateString).toLocaleString('es-CL');
-        } catch (error) {
-            return 'Fecha inválida';
-        }
-    };
-
-    const verificarGarantia = (fechaFactura) => {
-        if (!fechaFactura) return false;
-        const fechaLimite = moment(fechaFactura).add(1, 'year');
-        return moment().isBefore(fechaLimite);
+    const getSeguimientoTag = (valor) => {
+        if (valor === 'S') return <Badge status="success" text="Sí" />;
+        if (valor === 'N') return <Badge status="error" text="No" />;
+        return <Badge status="default" text="No definido" />;
     };
 
     if (loading) {
@@ -228,8 +117,7 @@ const SolicitudView = () => {
         );
     }
 
-    // Verificar si la garantía está activa
-    const garantiaActiva = solicitud.fecha_fact ? verificarGarantia(solicitud.fecha_fact) : false;
+    const garantiaEstaActiva = solicitud.fecha_fact ? garantiaActiva(solicitud.fecha_fact) : false;
 
     return (
         <div>
@@ -238,7 +126,7 @@ const SolicitudView = () => {
                     solicitud={solicitud}
                     tecnicoAsignado={tecnicoAsignado}
                     estadoAsignado={estadoAsignado}
-                    garantiaActiva={garantiaActiva}
+                    garantiaActiva={garantiaEstaActiva}
                     onFinish={() => setShowPdf(false)}
                 />
             ) : (
@@ -251,19 +139,20 @@ const SolicitudView = () => {
                                     Solicitud #{solicitud.id}
                                 </Title>
                                 {estadoAsignado ? getEstadoAsignadoTag(estadoAsignado) : getEstadoTag(solicitud.estado)}
+                                {solicitud.prioridad && (
+                                    <Tag color={getPrioridadColor(solicitud.prioridad)}>
+                                        Prioridad: {solicitud.prioridad}
+                                    </Tag>
+                                )}
                             </Space>
                         </Col>
                         <Col span={8} style={{ textAlign: 'right' }}>
                             <Space>
                                 <Link to="/solicitudes">
-                                    <Button icon={<ArrowLeftOutlined />}>
-                                        Volver
-                                    </Button>
+                                    <Button icon={<ArrowLeftOutlined />}>Volver</Button>
                                 </Link>
                                 <Link to={`/solicitudes/edit/${id}`}>
-                                    <Button icon={<EditOutlined />}>
-                                        Editar
-                                    </Button>
+                                    <Button icon={<EditOutlined />}>Editar</Button>
                                 </Link>
                                 <Button type="primary" icon={<FilePdfOutlined />} onClick={handleExportPDF}>
                                     Exportar PDF
@@ -287,30 +176,34 @@ const SolicitudView = () => {
                                     style={{ marginBottom: 16 }}
                                 >
                                     <Descriptions column={1} size="small" bordered>
-                                        <Descriptions.Item
-                                            label={<Space><CalendarOutlined /> Fecha</Space>}
-                                        >
+                                        <Descriptions.Item label={<Space><CalendarOutlined /> Fecha</Space>}>
                                             {formatDate(solicitud.fecha)}
                                         </Descriptions.Item>
-                                        <Descriptions.Item
-                                            label={<Space><ScheduleOutlined /> Tipo de Solicitud</Space>}
-                                        >
+                                        <Descriptions.Item label={<Space><ScheduleOutlined /> Tipo Solicitud</Space>}>
                                             {getTipoLabel(solicitud.tipo)}
                                         </Descriptions.Item>
-                                        <Descriptions.Item
-                                            label={<Space><UserOutlined /> Creada Por</Space>}
-                                        >
+                                        <Descriptions.Item label={<Space><UserOutlined /> Creada Por</Space>}>
                                             {solicitud.creada_por || 'N/A'}
                                         </Descriptions.Item>
-                                        <Descriptions.Item
-                                            label={<Space><EnvironmentOutlined /> Área de Trabajo</Space>}
-                                        >
+                                        <Descriptions.Item label={<Space><FieldTimeOutlined /> Ejecución</Space>}>
+                                            {solicitud.ejecucion || 'No definido'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label={<Space><StarOutlined /> Prioridad</Space>}>
+                                            {solicitud.prioridad ? (
+                                                <Tag color={getPrioridadColor(solicitud.prioridad)}>{solicitud.prioridad}</Tag>
+                                            ) : 'No definida'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label={<Space><EnvironmentOutlined /> Área</Space>}>
                                             <Tag color="blue">{getAreaTrabajoLabel(solicitud.area_trab)}</Tag>
                                         </Descriptions.Item>
-                                        <Descriptions.Item
-                                            label={<Space><EnvironmentOutlined /> Región</Space>}
-                                        >
+                                        <Descriptions.Item label={<Space><EnvironmentOutlined /> Región</Space>}>
                                             {REGIONES[solicitud.region] || `Región ${solicitud.region}`}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label={<Space><EnvironmentOutlined /> Comuna</Space>}>
+                                            {solicitud.comuna || 'N/A'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label={<Space><CalendarOutlined /> Modificación</Space>}>
+                                            {formatDate(solicitud.fecha_modificacion)}
                                         </Descriptions.Item>
                                     </Descriptions>
                                 </Card>
@@ -322,20 +215,27 @@ const SolicitudView = () => {
                                     style={{ marginBottom: 16 }}
                                 >
                                     <Descriptions column={1} size="small" bordered>
-                                        <Descriptions.Item
-                                            label={<Space><IdcardOutlined /> RUT</Space>}
-                                        >
+                                        <Descriptions.Item label={<Space><IdcardOutlined /> RUT</Space>}>
                                             {solicitud.codaux ? formatRut(solicitud.codaux) : 'N/A'}
                                         </Descriptions.Item>
-                                        <Descriptions.Item
-                                            label={<Space><UserOutlined /> Nombre</Space>}
-                                        >
+                                        <Descriptions.Item label={<Space><UserOutlined /> Nombre</Space>}>
                                             {solicitud.nomaux || 'N/A'}
                                         </Descriptions.Item>
-                                        <Descriptions.Item
-                                            label={<Space><EnvironmentOutlined /> Dirección</Space>}
-                                        >
+                                        <Descriptions.Item label={<Space><UserOutlined /> Tipo Cliente</Space>}>
+                                            {solicitud.tipo_cliente || 'No especificado'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label={<Space><EnvironmentOutlined /> Dirección</Space>}>
                                             {solicitud.dir_visita || 'N/A'}
+                                        </Descriptions.Item>
+                                        {/* Datos de contacto */}
+                                        <Descriptions.Item label={<Space><UserOutlined /> Contacto</Space>}>
+                                            {solicitud.nombre || 'N/A'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label={<Space><PhoneOutlined /> Teléfono</Space>}>
+                                            {solicitud.telefono || 'N/A'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label={<Space><MailOutlined /> Email</Space>}>
+                                            {solicitud.mail || 'N/A'}
                                         </Descriptions.Item>
                                     </Descriptions>
                                 </Card>
@@ -347,23 +247,23 @@ const SolicitudView = () => {
                                     style={{ marginBottom: 16 }}
                                 >
                                     <Descriptions column={1} size="small" bordered>
-                                        <Descriptions.Item
-                                            label={<Space><FileTextOutlined /> N° Factura</Space>}
-                                        >
+                                        <Descriptions.Item label={<Space><FileTextOutlined /> N° Factura</Space>}>
                                             {solicitud.factura || 'N/A'}
                                         </Descriptions.Item>
-                                        <Descriptions.Item
-                                            label={<Space><CalendarOutlined /> Fecha Factura</Space>}
-                                        >
+                                        <Descriptions.Item label={<Space><FileTextOutlined /> Factura Distribuidor</Space>}>
+                                            {solicitud.factura_dist || 'N/A'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label={<Space><CalendarOutlined /> Fecha Factura</Space>}>
                                             {solicitud.fecha_fact ? formatDate(solicitud.fecha_fact) : 'N/A'}
                                         </Descriptions.Item>
-                                        <Descriptions.Item
-                                            label="Estado Garantía"
-                                        >
+                                        <Descriptions.Item label="Facturable">
+                                            {solicitud.facturable || 'No especificado'}
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="Garantía">
                                             {solicitud.fecha_fact ? (
                                                 <Badge
-                                                    status={garantiaActiva ? "success" : "error"}
-                                                    text={garantiaActiva ? "Garantía activa" : "Garantía vencida"}
+                                                    status={garantiaEstaActiva ? "success" : "error"}
+                                                    text={garantiaEstaActiva ? "Activa" : "Vencida"}
                                                 />
                                             ) : 'N/A'}
                                         </Descriptions.Item>
@@ -379,6 +279,12 @@ const SolicitudView = () => {
                                             <Descriptions title="Problema Reportado" column={1} size="small" bordered>
                                                 <Descriptions.Item label="Descripción del Problema">
                                                     {solicitud.desc_motivo || 'N/A'}
+                                                </Descriptions.Item>
+                                                <Descriptions.Item label="Código Producto">
+                                                    {solicitud.codprod || 'N/A'}
+                                                </Descriptions.Item>
+                                                <Descriptions.Item label="Descripción Producto">
+                                                    {solicitud.desprod || 'N/A'}
                                                 </Descriptions.Item>
                                                 <Descriptions.Item label="Número de Serie">
                                                     {solicitud.nro_serie || 'N/A'}
@@ -407,6 +313,10 @@ const SolicitudView = () => {
                                                         No asignado
                                                     </Descriptions.Item>
                                                 )}
+
+                                                <Descriptions.Item label={<Space><CalendarOutlined /> Fecha Agendamiento</Space>}>
+                                                    {solicitud.fecha_agendamiento ? formatDate(solicitud.fecha_agendamiento) : 'No agendado'}
+                                                </Descriptions.Item>
                                             </Descriptions>
                                         </Card>
                                     </TabPane>
@@ -417,11 +327,36 @@ const SolicitudView = () => {
                                                 <Descriptions.Item label="Estado Actual">
                                                     {estadoAsignado ? getEstadoAsignadoTag(estadoAsignado) : getEstadoTag(solicitud.estado)}
                                                 </Descriptions.Item>
+                                                <Descriptions.Item label="Motivo del Estado">
+                                                    {solicitud.motivo_estado || 'No especificado'}
+                                                </Descriptions.Item>
                                                 <Descriptions.Item label="Fecha de Estado">
                                                     {solicitud.fecha_estado ? formatDate(solicitud.fecha_estado) : 'N/A'}
                                                 </Descriptions.Item>
+                                                <Descriptions.Item label="Técnico de Cierre">
+                                                    {solicitud.tecnico_cierre || 'Pendiente'}
+                                                </Descriptions.Item>
                                                 <Descriptions.Item label="Fecha de Cierre">
                                                     {solicitud.fec_cierre ? formatDate(solicitud.fec_cierre) : 'Pendiente de cierre'}
+                                                </Descriptions.Item>
+                                            </Descriptions>
+                                        </Card>
+                                    </TabPane>
+
+                                    <TabPane tab={<span><SyncOutlined /> Seguimiento</span>} key="3">
+                                        <Card className="info-card">
+                                            <Descriptions column={1} size="small" bordered>
+                                                <Descriptions.Item label="Cliente Contactado">
+                                                    {getSeguimientoTag(solicitud.cliente_contactado)}
+                                                </Descriptions.Item>
+                                                <Descriptions.Item label="Distribuidor Contactado">
+                                                    {getSeguimientoTag(solicitud.distribuidor_contactado)}
+                                                </Descriptions.Item>
+                                                <Descriptions.Item label="Técnico Confirmado">
+                                                    {getSeguimientoTag(solicitud.tecnico_confirmado)}
+                                                </Descriptions.Item>
+                                                <Descriptions.Item label="Reporte Enviado">
+                                                    {getSeguimientoTag(solicitud.reporte_enviado)}
                                                 </Descriptions.Item>
                                             </Descriptions>
                                         </Card>
@@ -432,15 +367,9 @@ const SolicitudView = () => {
                     </div>
                 </>
             )}
-
             <style jsx="true">{`
-                .main-content {
-                    margin-bottom: 20px;
-                }
-                
-                .info-card {
-                    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                }
+                .main-content { margin-bottom: 20px; }
+                .info-card { box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
             `}</style>
         </div>
     );

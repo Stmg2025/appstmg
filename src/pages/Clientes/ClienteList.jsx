@@ -1,81 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, message, Typography, Input, Card, Empty, Select, Row, Col, Tag, Tooltip, Popconfirm } from 'antd';
-import { PlusOutlined, EditOutlined, EyeOutlined, SearchOutlined, ReloadOutlined, FilterOutlined, DeleteOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    Table, Button, Space, message, Typography, Input, Card,
+    Empty, Select, Row, Col, Tag, Tooltip, Popconfirm
+} from 'antd';
+import {
+    PlusOutlined, EditOutlined, EyeOutlined, SearchOutlined,
+    ReloadOutlined, FilterOutlined, DeleteOutlined
+} from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import clienteService from '../../services/clienteService';
+import { formatRut } from '../../utils/formatters';
+import { REGIONES } from '../../utils/ubicacion';
 
 const { Title } = Typography;
 const { Option } = Select;
 
-// Mapeo de regiones
-const REGIONES = {
-    '1': 'Primera Región (de Tarapacá)',
-    '2': 'Segunda Región (de Antofagasta)',
-    '3': 'Tercera Región (de Atacama)',
-    '4': 'Cuarta Región (de Coquimbo)',
-    '5': 'Quinta Región (de Valparaíso)',
-    '6': 'Sexta Región (del Libertador B.O higgins)',
-    '7': 'Séptima Región (del Maule)',
-    '8': 'Octava Región (del Bío-Bío)',
-    '9': 'Novena Región (de la Araucanía)',
-    '10': 'Décima Región (de los Lagos)',
-    '11': 'Undécima Región (de Aisén del General Ca)',
-    '12': 'Duodécima Región (de Magallanes y de la)',
-    '13': 'Región Metropolitana (de Santiago)',
-    '14': 'Decimocuarta Región de los Rios',
-    '15': 'Decimoquinta Región de Arica y Parinacota'
-};
-
-// Función para calcular el dígito verificador de un RUT chileno
-const calcularDV = (rutNum) => {
-    let suma = 0;
-    let multiplo = 2;
-
-    // Convertir a string para asegurar que podemos iterar
-    let rutStr = String(rutNum);
-
-    for (let i = rutStr.length - 1; i >= 0; i--) {
-        suma += parseInt(rutStr.charAt(i)) * multiplo;
-        multiplo = multiplo < 7 ? multiplo + 1 : 2;
-    }
-
-    let dvCalculado = 11 - (suma % 11);
-
-    if (dvCalculado === 11) return '0';
-    if (dvCalculado === 10) return 'K';
-
-    return dvCalculado.toString();
-};
-
-// Función para formatear RUT chileno
-const formatRut = (rut) => {
-    if (!rut) return 'N/A';
-
-    // Limpiar: asegurar que es string y sin puntos ni guiones
-    const rutLimpio = String(rut).replace(/\./g, '').replace(/-/g, '');
-
-    // El codaux es el cuerpo del RUT, necesitamos calcular el DV
-    const rutSinDV = rutLimpio; // Asumimos que codaux no incluye el DV
-
-    // Calcular el dígito verificador
-    const dv = calcularDV(rutSinDV);
-
-    // Formatear con puntos
-    let rutFormateado = '';
-    let j = 0;
-
-    for (let i = rutSinDV.length - 1; i >= 0; i--) {
-        j++;
-        rutFormateado = rutSinDV.charAt(i) + rutFormateado;
-        if (j % 3 === 0 && i !== 0) {
-            rutFormateado = '.' + rutFormateado;
-        }
-    }
-
-    return rutFormateado + '-' + dv;
-};
-
 const ClienteList = () => {
+    // Estados
     const [clientes, setClientes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState('');
@@ -95,28 +36,25 @@ const ClienteList = () => {
 
     const navigate = useNavigate();
 
-    useEffect(() => {
-        fetchClientes(1, pagination.pageSize);
-    }, []);
-
-    const fetchClientes = async (page = 1, pageSize = pagination.pageSize) => {
+    // Función memoizada para obtener clientes (corregida para evitar el bucle infinito)
+    const fetchClientes = useCallback(async (page = 1, pageSize = 20) => {
         try {
             setLoading(true);
             const response = await clienteService.getAllClientes(page, pageSize);
 
-            if (response?.data?.success) {
-                setClientes(response.data.clientes || []);
+            if (response?.success) {
+                setClientes(response.clientes || []);
 
-                if (response.data.pagination) {
-                    setPagination({
-                        ...pagination,
+                if (response.pagination) {
+                    setPagination(prevState => ({
+                        ...prevState,
                         current: page,
                         pageSize: pageSize,
-                        total: response.data.pagination.total || 0,
-                    });
+                        total: response.pagination.total || 0,
+                    }));
                 }
             } else {
-                message.error(response?.data?.message || 'Error al cargar los clientes');
+                message.error(response?.message || 'Error al cargar los clientes');
                 setClientes([]);
             }
         } catch (error) {
@@ -126,9 +64,16 @@ const ClienteList = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []); // Sin dependencia de pagination para evitar el bucle
 
+    // Cargar datos iniciales
+    useEffect(() => {
+        fetchClientes(1, pagination.pageSize);
+    }, [fetchClientes]); // solo se ejecuta una vez al montar el componente
+
+    // Función de búsqueda
     const handleSearch = async () => {
+        // Si no hay criterios de búsqueda, cargar todos los clientes
         if (!searchText.trim() && !filters.region && !filters.ciudad) {
             fetchClientes(1, pagination.pageSize);
             return;
@@ -139,38 +84,28 @@ const ClienteList = () => {
             setLoading(true);
 
             const searchParams = {
-                searchText: searchText
+                searchText: searchText.trim() || undefined
             };
 
-            // Añadir filtros
+            // Añadir filtros adicionales
             if (filters.region) searchParams.region = filters.region;
             if (filters.ciudad) searchParams.ciudad = filters.ciudad;
 
             const response = await clienteService.searchClientes(searchParams);
 
-            if (response?.data?.success) {
-                let filteredResults = response.data.clientes || [];
+            if (response?.success) {
+                let resultados = response.clientes || [];
+                setClientes(resultados);
 
-                // Aplicar filtros adicionales en el cliente si es necesario
-                if (filters.region && filteredResults.length > 0) {
-                    filteredResults = filteredResults.filter(c => c.region === filters.region);
-                }
-
-                if (filters.ciudad && filteredResults.length > 0) {
-                    filteredResults = filteredResults.filter(c => c.ciudad && c.ciudad.toLowerCase().includes(filters.ciudad.toLowerCase()));
-                }
-
-                setClientes(filteredResults);
-
-                setPagination({
-                    ...pagination,
+                setPagination(prevState => ({
+                    ...prevState,
                     current: 1,
-                    total: filteredResults.length,
-                });
+                    total: resultados.length,
+                }));
 
-                message.success(`Se encontraron ${filteredResults.length} resultados`);
+                message.success(`Se encontraron ${resultados.length} resultados`);
             } else {
-                message.error(response?.data?.message || 'Error al realizar la búsqueda');
+                message.error(response?.message || 'Error al realizar la búsqueda');
             }
         } catch (error) {
             console.error('Error en búsqueda:', error);
@@ -181,6 +116,7 @@ const ClienteList = () => {
         }
     };
 
+    // Reiniciar búsqueda y filtros
     const resetSearch = () => {
         setSearchText('');
         setFilters({
@@ -191,16 +127,17 @@ const ClienteList = () => {
         fetchClientes(1, pagination.pageSize);
     };
 
+    // Eliminar cliente
     const handleDelete = async (codaux) => {
         try {
             setLoading(true);
             const response = await clienteService.deleteCliente(codaux);
 
-            if (response?.data?.success) {
+            if (response?.success) {
                 message.success('Cliente eliminado correctamente');
                 fetchClientes(pagination.current, pagination.pageSize);
             } else {
-                message.error(response?.data?.message || 'Error al eliminar el cliente');
+                message.error(response?.message || 'Error al eliminar el cliente');
             }
         } catch (error) {
             console.error('Error al eliminar cliente:', error);
@@ -210,11 +147,13 @@ const ClienteList = () => {
         }
     };
 
+    // Manejar cambios en la tabla (paginación)
     const handleTableChange = (newPagination) => {
         if (searching) return;
         fetchClientes(newPagination.current, newPagination.pageSize);
     };
 
+    // Columnas de la tabla
     const columns = [
         {
             title: 'Nombre',
@@ -251,6 +190,7 @@ const ClienteList = () => {
             dataIndex: 'fono',
             key: 'fono',
             width: 120,
+            render: (text) => text || 'N/A'
         },
         {
             title: 'Ubicación',

@@ -121,6 +121,126 @@ const solicitudService = {
                 }
             };
         }
+    },
+
+    // Obtener solicitudes por técnico asignado
+    getSolicitudesByTecnico: async (tecnicoId) => {
+        try {
+            const response = await api.get(`/solicitudes/tecnico/${tecnicoId}`);
+            return response;
+        } catch (error) {
+            console.error('Error en getSolicitudesByTecnico:', error);
+            return {
+                data: {
+                    success: false,
+                    message: error.message || 'Error al obtener solicitudes por técnico',
+                    solicitudes: []
+                }
+            };
+        }
+    },
+
+    // Obtener solicitudes por prioridad
+    getSolicitudesByPrioridad: async (prioridad) => {
+        try {
+            const response = await api.get(`/solicitudes/prioridad/${prioridad}`);
+            return response;
+        } catch (error) {
+            console.error('Error en getSolicitudesByPrioridad:', error);
+            return {
+                data: {
+                    success: false,
+                    message: error.message || 'Error al obtener solicitudes por prioridad',
+                    solicitudes: []
+                }
+            };
+        }
+    },
+
+    // Buscar solicitudes por rango de fecha de agendamiento
+    searchByFechaAgendamiento: async (fechaDesde, fechaHasta) => {
+        try {
+            const filters = {
+                fecha_agendamiento_desde: fechaDesde,
+                fecha_agendamiento_hasta: fechaHasta
+            };
+
+            let queryParams = Object.entries(filters)
+                .filter(([_, value]) => value !== undefined && value !== '')
+                .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+                .join('&');
+
+            const response = await api.get(`/solicitudes/search?${queryParams}`);
+            return response;
+        } catch (error) {
+            console.error('Error en searchByFechaAgendamiento:', error);
+            return {
+                data: {
+                    success: false,
+                    message: error.message || 'Error al buscar solicitudes por fecha de agendamiento',
+                    solicitudes: []
+                }
+            };
+        }
+    },
+
+    // Funciones de ayuda para filtros comunes
+
+    // Filtrar por tipo de cliente
+    getByTipoCliente: async (tipoCliente) => {
+        return await solicitudService.searchSolicitudes({ tipo_cliente: tipoCliente });
+    },
+
+    // Filtrar por facturable
+    getByFacturable: async (facturable) => {
+        return await solicitudService.searchSolicitudes({ facturable });
+    },
+
+    // Filtrar por ejecución
+    getByEjecucion: async (ejecucion) => {
+        return await solicitudService.searchSolicitudes({ ejecucion });
+    },
+
+    // Actualizar estado de solicitud
+    updateEstado: async (id, estado, motivo_estado = null) => {
+        const data = {
+            estado,
+            fecha_estado: new Date().toISOString().slice(0, 19).replace('T', ' ')
+        };
+
+        if (motivo_estado) {
+            data.motivo_estado = motivo_estado;
+        }
+
+        return await solicitudService.updateSolicitud(id, data);
+    },
+
+    // Asignar técnico a solicitud
+    asignarTecnico: async (id, tecnico_asignado) => {
+        return await solicitudService.updateSolicitud(id, { tecnico_asignado });
+    },
+
+    // Establecer fecha de agendamiento
+    agendar: async (id, fecha_agendamiento) => {
+        return await solicitudService.updateSolicitud(id, { fecha_agendamiento });
+    },
+
+    // Cerrar solicitud
+    cerrarSolicitud: async (id, tecnico_cierre, motivo_estado = null) => {
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const data = {
+            estado: 'Cerrada',
+            fec_cierre: now,
+            fec_real_cierre: now,
+            tecnico_cierre,
+            fecha_estado: now
+        };
+
+        if (motivo_estado) {
+            data.motivo_estado = motivo_estado;
+        }
+
+        return await solicitudService.updateSolicitud(id, data);
     }
 };
 

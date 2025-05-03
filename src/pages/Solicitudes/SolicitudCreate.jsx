@@ -1,123 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Select, Typography, message, Card, DatePicker, Space, Badge } from 'antd';
+import { Form, Input, Button, Select, Typography, message, Card, DatePicker, Space, Badge, Row, Col, Divider, AutoComplete, Switch } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
 import solicitudService from '../../services/solicitudService';
 import tecnicoService from '../../services/tecnicoService';
 import estadoSolicitudService from '../../services/estadoSolicitudService';
+import clienteService from '../../services/clienteService';
 import { useAuth } from '../../context/AuthContext';
+import { COMUNAS_POR_REGION, formatRut, limpiarRut, validarRut, garantiaActiva } from './constants';
 
 const { Title } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
-
-// Mapeo de regiones
-const REGIONES = {
-    '1': 'Primera Región (de Tarapacá)',
-    '2': 'Segunda Región (de Antofagasta)',
-    '3': 'Tercera Región (de Atacama)',
-    '4': 'Cuarta Región (de Coquimbo)',
-    '5': 'Quinta Región (de Valparaíso)',
-    '6': 'Sexta Región (del Libertador B.O higgins)',
-    '7': 'Séptima Región (del Maule)',
-    '8': 'Octava Región (del Bío-Bío)',
-    '9': 'Novena Región (de la Araucanía)',
-    '10': 'Décima Región (de los Lagos)',
-    '11': 'Undécima Región (de Aisén del General Ca)',
-    '12': 'Duodécima Región (de Magallanes y de la)',
-    '13': 'Región Metropolitana (de Santiago)',
-    '14': 'Decimocuarta Región de los Rios',
-    '15': 'Decimoquinta Región de Arica y Parinacota'
-};
-
-// Datos estáticos de comunas por región
-const COMUNAS_POR_REGION = {
-    '13': [
-        { id: '13301', nombre: 'Santiago' },
-        { id: '13302', nombre: 'Providencia' },
-        { id: '13303', nombre: 'Las Condes' }
-    ],
-    '5': [
-        { id: '5101', nombre: 'Valparaíso' },
-        { id: '5102', nombre: 'Viña del Mar' },
-        { id: '5103', nombre: 'Quilpué' }
-    ],
-    '8': [
-        { id: '8101', nombre: 'Concepción' },
-        { id: '8102', nombre: 'Talcahuano' },
-        { id: '8103', nombre: 'Chiguayante' }
-    ]
-};
-
-// Función para validar y formatear RUT chileno
-const formatRut = (rut) => {
-    if (!rut) return '';
-
-    // Eliminar caracteres no numéricos
-    let valor = rut.replace(/[^0-9kK]/g, '');
-
-    // Obtener dígito verificador
-    let dv = valor.charAt(valor.length - 1);
-
-    // Obtener cuerpo del RUT
-    let rutCuerpo = valor.slice(0, -1);
-
-    // Formatear con puntos y guión
-    let rutFormateado = '';
-    for (let i = rutCuerpo.length - 1; i >= 0; i--) {
-        rutFormateado = rutCuerpo.charAt(i) + rutFormateado;
-        if ((rutCuerpo.length - i) % 3 === 0 && i !== 0) {
-            rutFormateado = '.' + rutFormateado;
-        }
-    }
-
-    return rutFormateado + '-' + dv;
-};
-
-// Función para calcular el dígito verificador
-const calcularDV = (rut) => {
-    let suma = 0;
-    let multiplo = 2;
-
-    for (let i = rut.length - 1; i >= 0; i--) {
-        suma += parseInt(rut.charAt(i)) * multiplo;
-        multiplo = multiplo < 7 ? multiplo + 1 : 2;
-    }
-
-    let dvCalculado = 11 - (suma % 11);
-
-    if (dvCalculado === 11) return '0';
-    if (dvCalculado === 10) return 'K';
-
-    return dvCalculado.toString();
-};
-
-// Función para validar un RUT completo
-const validarRut = (rut) => {
-    if (!rut) return false;
-
-    // Limpiar el RUT de cualquier formato
-    let valor = rut.replace(/\./g, '').replace(/-/g, '');
-
-    // Obtener dígito verificador ingresado
-    let dv = valor.charAt(valor.length - 1).toUpperCase();
-
-    // Obtener cuerpo del RUT
-    let rutCuerpo = valor.slice(0, -1);
-
-    // Calcular dígito verificador esperado
-    let dvEsperado = calcularDV(rutCuerpo);
-
-    return dv === dvEsperado;
-};
-
-// Función para verificar si la garantía está activa (1 año desde la fecha de factura)
-const garantiaActiva = (fechaFactura) => {
-    if (!fechaFactura) return false;
-
-    const fechaLimite = moment(fechaFactura).add(1, 'year');
-    return moment().isBefore(fechaLimite);
-};
 
 const SolicitudCreate = () => {
     const [form] = Form.useForm();
@@ -130,9 +24,11 @@ const SolicitudCreate = () => {
     const [comunas, setComunas] = useState([]);
     const [loadingComunas, setLoadingComunas] = useState(false);
     const [fechaFactura, setFechaFactura] = useState(null);
+    const [clienteOptions, setClienteOptions] = useState([]);
+    const [loadingClientes, setLoadingClientes] = useState(false);
     const { user } = useAuth();
 
-    // Establecer creada_por automáticamente con datos del usuario
+    // Establecer creada_por automáticamente
     useEffect(() => {
         if (user && user.first_name && user.last_name) {
             form.setFieldsValue({
@@ -141,18 +37,13 @@ const SolicitudCreate = () => {
         }
     }, [user, form]);
 
-    // Cargar técnicos disponibles
+    // Cargar técnicos
     useEffect(() => {
         const fetchTecnicos = async () => {
             try {
                 setLoadingTecnicos(true);
                 const response = await tecnicoService.getTecnicos();
-                if (response?.data?.success && Array.isArray(response.data.tecnicos)) {
-                    setTecnicos(response.data.tecnicos);
-                } else {
-                    console.warn('Formato de respuesta de técnicos inválido:', response.data);
-                    setTecnicos([]);
-                }
+                setTecnicos(response?.data?.success && Array.isArray(response.data.tecnicos) ? response.data.tecnicos : []);
             } catch (error) {
                 console.error('Error al cargar técnicos:', error);
                 setTecnicos([]);
@@ -160,26 +51,18 @@ const SolicitudCreate = () => {
                 setLoadingTecnicos(false);
             }
         };
-
         fetchTecnicos();
     }, []);
 
-    // Cargar estados disponibles
+    // Cargar estados
     useEffect(() => {
         const fetchEstados = async () => {
             try {
                 setLoadingEstados(true);
                 const response = await estadoSolicitudService.getEstados();
-                console.log('Respuesta de estados:', response?.data);
-
-                if (response?.data?.success && Array.isArray(response.data.estados)) {
-                    setEstados(response.data.estados);
-                } else {
-                    console.warn('Formato de respuesta de estados inválido:', response?.data);
-                    setEstados([]);
-                    if (response?.status !== 503) {
-                        message.info('No se pudieron cargar los estados. Algunas funciones podrían estar limitadas.');
-                    }
+                setEstados(response?.data?.success && Array.isArray(response.data.estados) ? response.data.estados : []);
+                if (!(response?.data?.success) && response?.status !== 503) {
+                    message.info('No se pudieron cargar los estados');
                 }
             } catch (error) {
                 console.error('Error al cargar estados:', error);
@@ -188,23 +71,20 @@ const SolicitudCreate = () => {
                 setLoadingEstados(false);
             }
         };
-
         fetchEstados();
     }, []);
 
-    // Cargar comunas según la región seleccionada
+    // Cargar comunas
     const cargarComunas = (regionId) => {
         if (!regionId) {
             setComunas([]);
             return;
         }
-
         try {
             setLoadingComunas(true);
-            if (regionId in COMUNAS_POR_REGION) {
-                setComunas(COMUNAS_POR_REGION[regionId]);
-            } else {
-                setComunas([]);
+            const comunasList = COMUNAS_POR_REGION[regionId] || [];
+            setComunas(comunasList);
+            if (comunasList.length === 0) {
                 message.info(`No hay comunas disponibles para la región seleccionada`);
             }
         } catch (error) {
@@ -215,30 +95,113 @@ const SolicitudCreate = () => {
         }
     };
 
-    // Manejar cambio de región
     const handleRegionChange = (value) => {
         form.setFieldsValue({ comuna: undefined });
         cargarComunas(value);
     };
 
-    // Manejar cambio de fecha de factura para verificar garantía
     const handleFechaFacturaChange = (date) => {
         setFechaFactura(date);
     };
 
-    // Preparar datos antes de enviar al servidor
+    // Buscar cliente
+    const handleSearchCliente = async (value) => {
+        if (!value || value.length < 3) {
+            setClienteOptions([]);
+            return;
+        }
+        try {
+            setLoadingClientes(true);
+            const response = await clienteService.searchClientes({ searchText: value });
+            if (response?.data?.success && Array.isArray(response.data.clientes)) {
+                setClienteOptions(response.data.clientes.map(cliente => ({
+                    value: formatRut(cliente.codaux),
+                    text: `${formatRut(cliente.codaux)} - ${cliente.nomaux}`,
+                    cliente: cliente
+                })));
+            } else {
+                setClienteOptions([]);
+            }
+        } catch (error) {
+            console.error('Error al buscar clientes:', error);
+            setClienteOptions([]);
+        } finally {
+            setLoadingClientes(false);
+        }
+    };
+
+    // Seleccionar cliente
+    const handleSelectCliente = (value, option) => {
+        if (!option.cliente) return;
+
+        const cliente = option.cliente;
+        form.setFieldsValue({
+            nomaux: cliente.nomaux,
+            tipo_cliente: cliente.tipo_cliente,
+            dir_visita: cliente.direccion || '',
+            region: cliente.region,
+            comuna: cliente.comuna,
+            nombre: cliente.nombre || '',
+            telefono: cliente.telefono || '',
+            mail: cliente.mail || ''
+        });
+
+        if (cliente.region) cargarComunas(cliente.region);
+    };
+
+    // Buscar cliente por RUT
+    const handleRutChange = async (value) => {
+        if (!value || !validarRut(value)) return;
+
+        try {
+            const rutLimpio = limpiarRut(value).slice(0, -1);
+            const response = await clienteService.getClienteById(rutLimpio);
+
+            if (response?.data?.success && response.data.cliente) {
+                const cliente = response.data.cliente;
+                form.setFieldsValue({
+                    nomaux: cliente.nomaux,
+                    tipo_cliente: cliente.tipo_cliente,
+                    dir_visita: cliente.direccion || '',
+                    region: cliente.region,
+                    comuna: cliente.comuna,
+                    nombre: cliente.nombre || '',
+                    telefono: cliente.telefono || '',
+                    mail: cliente.mail || ''
+                });
+
+                if (cliente.region) cargarComunas(cliente.region);
+                message.success('Datos del cliente cargados');
+            }
+        } catch (error) {
+            console.error('Error al obtener cliente por RUT:', error);
+        }
+    };
+
+    // Preparar datos para enviar
     const prepararDatosParaEnviar = (values) => {
         const datosPreparados = { ...values };
 
-        // Formatear RUT (codaux) - guardar sin puntos ni guión, solo números
+        // Formatear RUT
         if (values.codaux) {
-            datosPreparados.codaux = values.codaux.replace(/\./g, '').replace(/-/g, '').slice(0, -1);
+            datosPreparados.codaux = limpiarRut(values.codaux).slice(0, -1);
         }
 
-        // Formatear fecha_fact
+        // Formatear fechas
         if (values.fecha_fact && moment.isMoment(values.fecha_fact)) {
             datosPreparados.fecha_fact = values.fecha_fact.format('YYYY-MM-DD');
         }
+
+        if (values.fecha_agendamiento && moment.isMoment(values.fecha_agendamiento)) {
+            datosPreparados.fecha_agendamiento = values.fecha_agendamiento.format('YYYY-MM-DD');
+        }
+
+        // Convertir booleanos a 'S'/'N'
+        ['cliente_contactado', 'distribuidor_contactado', 'tecnico_confirmado', 'reporte_enviado'].forEach(campo => {
+            if (datosPreparados[campo] !== undefined) {
+                datosPreparados[campo] = datosPreparados[campo] ? 'S' : 'N';
+            }
+        });
 
         return datosPreparados;
     };
@@ -254,8 +217,6 @@ const SolicitudCreate = () => {
             }
 
             const datosPreparados = prepararDatosParaEnviar(values);
-            console.log("Datos a enviar:", datosPreparados);
-
             const response = await solicitudService.createSolicitud(datosPreparados);
 
             if (response?.data?.success) {
@@ -281,228 +242,337 @@ const SolicitudCreate = () => {
                     form={form}
                     layout="vertical"
                     onFinish={onFinish}
-                    style={{ maxWidth: 600 }}
+                    initialValues={{
+                        cliente_contactado: false,
+                        distribuidor_contactado: false,
+                        tecnico_confirmado: false,
+                        reporte_enviado: false
+                    }}
                 >
-                    {/* Información del Cliente */}
-                    <Form.Item
-                        name="codaux"
-                        label="RUT Cliente"
-                        rules={[
-                            {
-                                validator: (_, value) => {
-                                    if (!value) return Promise.resolve();
-                                    return validarRut(value)
-                                        ? Promise.resolve()
-                                        : Promise.reject('El RUT ingresado no es válido');
-                                }
-                            }
-                        ]}
-                        normalize={formatRut}
-                    >
-                        <Input placeholder="Ej: 12.345.678-9" />
-                    </Form.Item>
+                    <Row gutter={16}>
+                        <Col span={24}>
+                            <Divider orientation="left">Información del Cliente</Divider>
+                        </Col>
 
-                    <Form.Item
-                        name="nomaux"
-                        label="Nombre Cliente"
-                    >
-                        <Input placeholder="Nombre completo del cliente" />
-                    </Form.Item>
+                        <Col xs={24} md={12}>
+                            <Form.Item name="codaux" label="RUT Cliente" rules={[{ validator: (_, value) => !value || validarRut(value) ? Promise.resolve() : Promise.reject('RUT inválido') }]} normalize={formatRut}>
+                                <AutoComplete
+                                    options={clienteOptions}
+                                    onSearch={handleSearchCliente}
+                                    onSelect={handleSelectCliente}
+                                    onChange={handleRutChange}
+                                    placeholder="Ej: 12.345.678-9"
+                                    notFoundContent={loadingClientes ? <span>Cargando...</span> : null}
+                                />
+                            </Form.Item>
+                        </Col>
 
-                    {/* Información de la Solicitud */}
-                    <Form.Item
-                        name="tipo"
-                        label="Tipo de Solicitud"
-                        rules={[{ required: true, message: 'Por favor selecciona el tipo de solicitud' }]}
-                    >
-                        <Select placeholder="Seleccione el tipo de solicitud">
-                            <Option value="Garantia">Garantía</Option>
-                            <Option value="Servicio">Servicio</Option>
-                            <Option value="Mantenimiento">Mantenimiento</Option>
-                            <Option value="Cortesia">Cortesía</Option>
-                            <Option value="Instalacion">Instalación</Option>
-                            <Option value="Reparacion">Reparación</Option>
-                            <Option value="Conversion">Conversión</Option>
-                            <Option value="Logistica">Logística</Option>
-                        </Select>
-                    </Form.Item>
+                        <Col xs={24} md={12}>
+                            <Form.Item name="nomaux" label="Nombre Cliente">
+                                <Input placeholder="Nombre completo del cliente" />
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item
-                        name="desc_motivo"
-                        label="Descripción Motivo"
-                        rules={[{ required: true, message: 'Por favor ingresa una descripción del motivo' }]}
-                    >
-                        <TextArea rows={3} placeholder="Descripción detallada del motivo" />
-                    </Form.Item>
+                        <Col xs={24} md={8}>
+                            <Form.Item name="tipo_cliente" label="Tipo de Cliente">
+                                <Select placeholder="Seleccione tipo de cliente">
+                                    <Option value="Final">Final</Option>
+                                    <Option value="Retail">Retail</Option>
+                                    <Option value="Distribuidor">Distribuidor</Option>
+                                </Select>
+                            </Form.Item>
+                        </Col>
 
-                    {/* Campo tipo_motivo oculto */}
-                    <Form.Item name="tipo_motivo" hidden>
-                        <Input />
-                    </Form.Item>
+                        <Col xs={24} md={8}>
+                            <Form.Item name="facturable" label="¿Es Facturable?">
+                                <Select placeholder="Seleccione facturable">
+                                    <Option value="Si">Si</Option>
+                                    <Option value="Garantia">Garantía</Option>
+                                    <Option value="Cortesia">Cortesía</Option>
+                                </Select>
+                            </Form.Item>
+                        </Col>
 
-                    {/* Campo creada_por deshabilitado (se completa automáticamente) */}
-                    <Form.Item
-                        name="creada_por"
-                        label="Creada Por"
-                        rules={[{ required: true, message: 'Usuario que crea la solicitud' }]}
-                    >
-                        <Input disabled />
-                    </Form.Item>
+                        {/* Campos de contacto */}
+                        <Col xs={24} md={8}>
+                            <Form.Item name="nombre" label="Nombre Contacto">
+                                <Input placeholder="Nombre de contacto" />
+                            </Form.Item>
+                        </Col>
 
-                    {/* Estado de la solicitud */}
-                    <Form.Item
-                        name="estado_id"
-                        label="Estado de Solicitud"
-                        rules={[{ required: true, message: 'Por favor selecciona el estado' }]}
-                    >
-                        <Select
-                            placeholder="Seleccione un estado"
-                            loading={loadingEstados}
-                            showSearch
-                            optionFilterProp="children"
-                            notFoundContent={loadingEstados ? <span>Cargando...</span> : <span>No hay estados disponibles</span>}
-                        >
-                            {(estados || []).map(estado => (
-                                <Option key={estado.id} value={estado.id}>
-                                    {estado.nombre || `Estado ${estado.id}`}
-                                </Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
+                        <Col xs={24} md={6}>
+                            <Form.Item name="telefono" label="Teléfono">
+                                <Input placeholder="Teléfono" />
+                            </Form.Item>
+                        </Col>
 
-                    {/* Campo para asignar técnico */}
-                    <Form.Item
-                        name="tecnico_asignado"
-                        label="Técnico Asignado"
-                    >
-                        <Select
-                            placeholder="Seleccione un técnico"
-                            allowClear
-                            loading={loadingTecnicos}
-                            showSearch
-                            optionFilterProp="children"
-                            notFoundContent={loadingTecnicos ? <span>Cargando...</span> : <span>No hay técnicos disponibles</span>}
-                        >
-                            {(tecnicos || []).map(tecnico => (
-                                <Option key={tecnico.id} value={tecnico.id}>
-                                    {tecnico.nombre_completo || `Técnico ${tecnico.id}`} - {tecnico.especialidad || 'Sin especialidad'}
-                                </Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
+                        <Col xs={24} md={6}>
+                            <Form.Item name="mail" label="Email" rules={[{ type: 'email', message: 'Email inválido' }]}>
+                                <Input placeholder="Email" />
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item
-                        name="area_trab"
-                        label="Área de Trabajo"
-                        rules={[{ required: true, message: 'Por favor selecciona el área de trabajo' }]}
-                    >
-                        <Select placeholder="Seleccione el área de trabajo">
-                            <Option value="TERRENO">Terreno</Option>
-                            <Option value="PLANTA">Taller</Option>
-                            <Option value="REMOTO">Remoto</Option>
-                        </Select>
-                    </Form.Item>
+                        <Col span={24}>
+                            <Divider orientation="left">Información de la Solicitud</Divider>
+                        </Col>
 
-                    <Form.Item
-                        name="dir_visita"
-                        label="Dirección Visita"
-                        rules={[{ required: true, message: 'Por favor ingresa la dirección de visita' }]}
-                    >
-                        <Input placeholder="Dirección completa" />
-                    </Form.Item>
+                        <Col xs={24} md={8}>
+                            <Form.Item name="tipo" label="Tipo de Solicitud" rules={[{ required: true, message: 'Campo requerido' }]}>
+                                <Select placeholder="Seleccione tipo">
+                                    <Option value="Garantia">Garantía</Option>
+                                    <Option value="Servicio">Servicio</Option>
+                                    <Option value="Mantenimiento">Mantenimiento</Option>
+                                    <Option value="Cortesia">Cortesía</Option>
+                                    <Option value="Instalacion">Instalación</Option>
+                                    <Option value="Reparacion">Reparación</Option>
+                                    <Option value="Conversion">Conversión</Option>
+                                    <Option value="Logistica">Logística</Option>
+                                </Select>
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item
-                        name="region"
-                        label="Región"
-                        rules={[{ required: true, message: 'Por favor selecciona la región' }]}
-                    >
-                        <Select
-                            placeholder="Seleccione la región"
-                            onChange={handleRegionChange}
-                            showSearch
-                            optionFilterProp="children"
-                        >
-                            {Object.entries(REGIONES).map(([key, value]) => (
-                                <Option key={key} value={key}>
-                                    {value}
-                                </Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
+                        <Col xs={24} md={8}>
+                            <Form.Item name="prioridad" label="Prioridad">
+                                <Select placeholder="Seleccione prioridad">
+                                    <Option value="Normal">Normal</Option>
+                                    <Option value="Urgente">Urgente</Option>
+                                    <Option value="Atrasado">Atrasada</Option>
+                                </Select>
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item
-                        name="comuna"
-                        label="Comuna"
-                        rules={[{ required: true, message: 'Por favor selecciona la comuna' }]}
-                    >
-                        <Select
-                            placeholder="Seleccione la comuna"
-                            loading={loadingComunas}
-                            showSearch
-                            optionFilterProp="children"
-                            disabled={comunas.length === 0}
-                            notFoundContent={loadingComunas ? <span>Cargando...</span> : <span>Seleccione primero una región</span>}
-                        >
-                            {comunas.map(comuna => (
-                                <Option key={comuna.id} value={comuna.id}>
-                                    {comuna.nombre}
-                                </Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
+                        <Col xs={24} md={8}>
+                            <Form.Item name="ejecucion" label="Ejecución">
+                                <Select placeholder="Seleccione ejecución">
+                                    <Option value="Interna">Interna</Option>
+                                    <Option value="Externa">Externa</Option>
+                                </Select>
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item
-                        name="nro_serie"
-                        label="Número de Serie"
-                    >
-                        <Input placeholder="Número de serie del equipo" />
-                    </Form.Item>
+                        <Col xs={24}>
+                            <Form.Item name="desc_motivo" label="Descripción Motivo" rules={[{ required: true, message: 'Campo requerido' }]}>
+                                <TextArea rows={3} placeholder="Descripción detallada" />
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item
-                        name="factura"
-                        label="Número de Factura"
-                    >
-                        <Input placeholder="Número de factura" />
-                    </Form.Item>
+                        <Col xs={24} md={12}>
+                            <Form.Item name="creada_por" label="Creada Por" rules={[{ required: true }]}>
+                                <Input disabled />
+                            </Form.Item>
+                        </Col>
 
-                    <Form.Item
-                        name="fecha_fact"
-                        label="Fecha de Factura"
-                        extra={
-                            fechaFactura && (
-                                <Space>
-                                    <span>Estado de garantía:</span>
-                                    {garantiaActiva(fechaFactura) ? (
-                                        <Badge status="success" text="Garantía activa" />
-                                    ) : (
-                                        <Badge status="error" text="Garantía vencida" />
-                                    )}
-                                </Space>
-                            )
-                        }
-                    >
-                        <DatePicker
-                            style={{ width: '100%' }}
-                            onChange={handleFechaFacturaChange}
-                        />
-                    </Form.Item>
+                        <Col span={24}>
+                            <Divider orientation="left">Estado y Asignación</Divider>
+                        </Col>
 
-                    <Form.Item>
-                        <Button
-                            type="primary"
-                            htmlType="submit"
-                            loading={loading}
-                        >
-                            Crear Solicitud
-                        </Button>
-                        <Button
-                            style={{ marginLeft: 8 }}
-                            onClick={() => navigate('/solicitudes')}
-                            disabled={loading}
-                        >
-                            Cancelar
-                        </Button>
-                    </Form.Item>
+                        <Col xs={24} md={8}>
+                            <Form.Item name="estado_id" label="Estado" rules={[{ required: true, message: 'Campo requerido' }]}>
+                                <Select
+                                    placeholder="Seleccione estado"
+                                    loading={loadingEstados}
+                                    showSearch
+                                    optionFilterProp="children"
+                                >
+                                    {estados.map(estado => (
+                                        <Option key={estado.id} value={estado.id}>
+                                            {estado.nombre || `Estado ${estado.id}`}
+                                        </Option>
+                                    ))}
+                                </Select>
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={8}>
+                            <Form.Item name="motivo_estado" label="Motivo del Estado">
+                                <Input placeholder="Motivo del estado" />
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={8}>
+                            <Form.Item name="tecnico_asignado" label="Técnico Asignado">
+                                <Select
+                                    placeholder="Seleccione técnico"
+                                    allowClear
+                                    loading={loadingTecnicos}
+                                    showSearch
+                                    optionFilterProp="children"
+                                >
+                                    {tecnicos.map(tecnico => (
+                                        <Option key={tecnico.id} value={tecnico.id}>
+                                            {tecnico.nombre_completo || `Técnico ${tecnico.id}`}
+                                        </Option>
+                                    ))}
+                                </Select>
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={8}>
+                            <Form.Item name="fecha_agendamiento" label="Fecha Agendamiento">
+                                <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+                            </Form.Item>
+                        </Col>
+
+                        {/* Estados de seguimiento */}
+                        <Col xs={24}>
+                            <Divider orientation="left">Seguimiento</Divider>
+                        </Col>
+
+                        <Col xs={24} md={6}>
+                            <Form.Item name="cliente_contactado" label="Cliente Contactado" valuePropName="checked">
+                                <Switch />
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={6}>
+                            <Form.Item name="distribuidor_contactado" label="Distribuidor Contactado" valuePropName="checked">
+                                <Switch />
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={6}>
+                            <Form.Item name="tecnico_confirmado" label="Técnico Confirmado" valuePropName="checked">
+                                <Switch />
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={6}>
+                            <Form.Item name="reporte_enviado" label="Reporte Enviado" valuePropName="checked">
+                                <Switch />
+                            </Form.Item>
+                        </Col>
+
+                        <Col span={24}>
+                            <Divider orientation="left">Ubicación</Divider>
+                        </Col>
+
+                        <Col xs={24} md={8}>
+                            <Form.Item name="area_trab" label="Área de Trabajo" rules={[{ required: true, message: 'Campo requerido' }]}>
+                                <Select placeholder="Seleccione área">
+                                    <Option value="TERRENO">Terreno</Option>
+                                    <Option value="PLANTA">Taller</Option>
+                                    <Option value="REMOTO">Remoto</Option>
+                                </Select>
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={16}>
+                            <Form.Item name="dir_visita" label="Dirección Visita" rules={[{ required: true, message: 'Campo requerido' }]}>
+                                <Input placeholder="Dirección completa" />
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                            <Form.Item name="region" label="Región" rules={[{ required: true, message: 'Campo requerido' }]}>
+                                <Select placeholder="Seleccione región" onChange={handleRegionChange} showSearch optionFilterProp="children">
+                                    <Option value="15">Arica y Parinacota</Option>
+                                    <Option value="1">Tarapacá</Option>
+                                    <Option value="2">Antofagasta</Option>
+                                    <Option value="3">Atacama</Option>
+                                    <Option value="4">Coquimbo</Option>
+                                    <Option value="5">Valparaíso</Option>
+                                    <Option value="13">Metropolitana</Option>
+                                    <Option value="6">O'Higgins</Option>
+                                    <Option value="7">Maule</Option>
+                                    <Option value="16">Ñuble</Option>
+                                    <Option value="8">Biobío</Option>
+                                    <Option value="9">La Araucanía</Option>
+                                    <Option value="14">Los Ríos</Option>
+                                    <Option value="10">Los Lagos</Option>
+                                    <Option value="11">Aysén</Option>
+                                    <Option value="12">Magallanes</Option>
+                                </Select>
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={12}>
+                            <Form.Item name="comuna" label="Comuna" rules={[{ required: true, message: 'Campo requerido' }]}>
+                                <Select
+                                    placeholder="Seleccione comuna"
+                                    loading={loadingComunas}
+                                    disabled={comunas.length === 0}
+                                    showSearch
+                                    optionFilterProp="children"
+                                >
+                                    {comunas.map(comuna => (
+                                        <Option key={comuna.id} value={comuna.id}>{comuna.nombre}</Option>
+                                    ))}
+                                </Select>
+                            </Form.Item>
+                        </Col>
+
+                        <Col span={24}>
+                            <Divider orientation="left">Producto y Facturación</Divider>
+                        </Col>
+
+                        <Col xs={24} md={6}>
+                            <Form.Item name="codprod" label="Código Producto">
+                                <Input placeholder="Código producto" />
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={6}>
+                            <Form.Item name="desprod" label="Descripción Producto">
+                                <Input placeholder="Descripción producto" />
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={6}>
+                            <Form.Item name="nro_serie" label="Número Serie">
+                                <Input placeholder="Número serie" />
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={6}>
+                            <Form.Item name="factura" label="Número Factura">
+                                <Input placeholder="Número factura" />
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={8}>
+                            <Form.Item
+                                name="fecha_fact"
+                                label="Fecha Factura"
+                                extra={fechaFactura && (
+                                    <Space>
+                                        <span>Garantía:</span>
+                                        <Badge status={garantiaActiva(fechaFactura) ? "success" : "error"} text={garantiaActiva(fechaFactura) ? "Activa" : "Vencida"} />
+                                    </Space>
+                                )}
+                            >
+                                <DatePicker
+                                    style={{ width: '100%' }}
+                                    onChange={handleFechaFacturaChange}
+                                    format="YYYY-MM-DD"
+                                />
+                            </Form.Item>
+                        </Col>
+
+                        <Col xs={24} md={8}>
+                            <Form.Item name="factura_dist" label="Factura Distribuidor">
+                                <Input type="number" placeholder="Factura distribuidor" />
+                            </Form.Item>
+                        </Col>
+
+                        <Col span={24} style={{ textAlign: 'right', marginTop: 16 }}>
+                            <Form.Item>
+                                <Button
+                                    type="primary"
+                                    htmlType="submit"
+                                    loading={loading}
+                                >
+                                    Crear Solicitud
+                                </Button>
+                                <Button
+                                    style={{ marginLeft: 8 }}
+                                    onClick={() => navigate('/solicitudes')}
+                                    disabled={loading}
+                                >
+                                    Cancelar
+                                </Button>
+                            </Form.Item>
+                        </Col>
+                    </Row>
                 </Form>
             </Card>
         </div>

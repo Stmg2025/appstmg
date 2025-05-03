@@ -1,97 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Form, Input, Button, Select, Typography, message, Card, Spin } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import clienteService from '../../services/clienteService';
+import { REGIONES, COMUNAS_POR_REGION } from "../../utils/ubicacion";
+import { formatRut } from "../../utils/formatters";
 
 const { Title } = Typography;
 const { Option } = Select;
-
-// Mapeo de regiones
-const REGIONES = {
-    '1': 'Primera Región (de Tarapacá)',
-    '2': 'Segunda Región (de Antofagasta)',
-    '3': 'Tercera Región (de Atacama)',
-    '4': 'Cuarta Región (de Coquimbo)',
-    '5': 'Quinta Región (de Valparaíso)',
-    '6': 'Sexta Región (del Libertador B.O higgins)',
-    '7': 'Séptima Región (del Maule)',
-    '8': 'Octava Región (del Bío-Bío)',
-    '9': 'Novena Región (de la Araucanía)',
-    '10': 'Décima Región (de los Lagos)',
-    '11': 'Undécima Región (de Aisén del General Ca)',
-    '12': 'Duodécima Región (de Magallanes y de la)',
-    '13': 'Región Metropolitana (de Santiago)',
-    '14': 'Decimocuarta Región de los Rios',
-    '15': 'Decimoquinta Región de Arica y Parinacota'
-};
-
-// Datos estáticos de comunas por región
-const COMUNAS_POR_REGION = {
-    '13': [
-        { id: '13301', nombre: 'Santiago' },
-        { id: '13302', nombre: 'Providencia' },
-        { id: '13303', nombre: 'Las Condes' }
-    ],
-    '5': [
-        { id: '5101', nombre: 'Valparaíso' },
-        { id: '5102', nombre: 'Viña del Mar' },
-        { id: '5103', nombre: 'Quilpué' }
-    ],
-    '8': [
-        { id: '8101', nombre: 'Concepción' },
-        { id: '8102', nombre: 'Talcahuano' },
-        { id: '8103', nombre: 'Chiguayante' }
-    ]
-};
-
-// Función para calcular el dígito verificador de un RUT chileno
-const calcularDV = (rutNum) => {
-    let suma = 0;
-    let multiplo = 2;
-
-    // Convertir a string para asegurar que podemos iterar
-    let rutStr = String(rutNum);
-
-    for (let i = rutStr.length - 1; i >= 0; i--) {
-        suma += parseInt(rutStr.charAt(i)) * multiplo;
-        multiplo = multiplo < 7 ? multiplo + 1 : 2;
-    }
-
-    let dvCalculado = 11 - (suma % 11);
-
-    if (dvCalculado === 11) return '0';
-    if (dvCalculado === 10) return 'K';
-
-    return dvCalculado.toString();
-};
-
-// Función para formatear RUT chileno
-const formatRut = (rut) => {
-    if (!rut) return '';
-
-    // Limpiar: asegurar que es string y sin puntos ni guiones
-    const rutLimpio = String(rut).replace(/\./g, '').replace(/-/g, '');
-
-    // El codaux es el cuerpo del RUT, necesitamos calcular el DV
-    const rutSinDV = rutLimpio; // Asumimos que codaux no incluye el DV
-
-    // Calcular el dígito verificador
-    const dv = calcularDV(rutSinDV);
-
-    // Formatear con puntos
-    let rutFormateado = '';
-    let j = 0;
-
-    for (let i = rutSinDV.length - 1; i >= 0; i--) {
-        j++;
-        rutFormateado = rutSinDV.charAt(i) + rutFormateado;
-        if (j % 3 === 0 && i !== 0) {
-            rutFormateado = '.' + rutFormateado;
-        }
-    }
-
-    return rutFormateado + '-' + dv;
-};
 
 const ClienteEdit = () => {
     const { codaux } = useParams();
@@ -105,7 +20,7 @@ const ClienteEdit = () => {
     const [clienteOriginal, setClienteOriginal] = useState(null);
 
     // Cargar comunas según la región seleccionada
-    const cargarComunas = (regionId) => {
+    const cargarComunas = useCallback((regionId) => {
         if (!regionId) {
             setComunas([]);
             return;
@@ -125,30 +40,28 @@ const ClienteEdit = () => {
         } finally {
             setLoadingComunas(false);
         }
-    };
+    }, []);
 
     // Manejar cambio de región
-    const handleRegionChange = (value) => {
+    const handleRegionChange = useCallback((value) => {
         setSelectedRegion(value);
         form.setFieldsValue({ comuna: undefined });
         cargarComunas(value);
-    };
+    }, [form, cargarComunas]);
 
+    // Cargar datos del cliente
     useEffect(() => {
         const fetchClienteData = async () => {
             try {
                 setInitialLoading(true);
-                console.log(`Obteniendo datos del cliente con código: ${codaux}`);
-
                 const response = await clienteService.getClienteById(codaux);
-                console.log("Respuesta completa del backend:", response);
 
-                if (response?.data?.success && response.data.cliente) {
-                    const clienteData = response.data.cliente;
+                if (response?.success && response.cliente) {
+                    const clienteData = response.cliente;
                     setClienteOriginal(clienteData);
 
                     if (clienteData) {
-                        // Formateamos el RUT para mostrarlo
+                        // Formatear el RUT para mostrarlo
                         const rutFormateado = formatRut(clienteData.codaux);
 
                         // Crear objeto con los datos para el formulario
@@ -167,22 +80,23 @@ const ClienteEdit = () => {
 
                         message.success('Datos cargados correctamente');
                     } else {
-                        throw new Error("El backend no devolvió datos válidos.");
+                        throw new Error("No se recibieron datos válidos del cliente");
                     }
                 } else {
-                    throw new Error(response?.data?.message || "No se encontraron datos.");
+                    throw new Error(response?.message || "No se encontraron datos del cliente");
                 }
             } catch (error) {
                 console.error('Error al cargar datos:', error);
-                message.error("Error al obtener los datos del cliente.");
+                message.error("Error al obtener los datos del cliente");
             } finally {
                 setInitialLoading(false);
             }
         };
 
         fetchClienteData();
-    }, [codaux, form]);
+    }, [codaux, form, cargarComunas]);
 
+    // Enviar datos actualizados
     const onFinish = async (values) => {
         try {
             setLoading(true);
@@ -195,23 +109,17 @@ const ClienteEdit = () => {
                 delete dataToSend.rut_formateado;
             }
 
-            console.log("Datos a enviar:", dataToSend);
-
-            // Llamada al servicio para actualizar el cliente
             const response = await clienteService.updateCliente(codaux, dataToSend);
-            console.log("Respuesta de actualización:", response);
 
-            if (response?.data?.success) {
+            if (response?.success) {
                 message.success('Cliente actualizado exitosamente');
                 navigate(`/clientes/${codaux}`);
             } else {
-                // Mensaje específico si el backend proporciona uno
-                const errorMsg = response?.data?.message || "Error al actualizar el cliente.";
-                throw new Error(errorMsg);
+                throw new Error(response?.message || "Error al actualizar el cliente");
             }
         } catch (error) {
             console.error('Error al actualizar cliente:', error);
-            message.error(error.message || 'Error al actualizar el cliente.');
+            message.error(error.message || 'Error al actualizar el cliente');
         } finally {
             setLoading(false);
         }
@@ -232,7 +140,6 @@ const ClienteEdit = () => {
                     onFinish={onFinish}
                     style={{ maxWidth: 600 }}
                     initialValues={{
-                        // Valores por defecto (previene warnings de campos no controlados)
                         codaux: '',
                         rut_formateado: '',
                         nombre: '',
@@ -241,7 +148,9 @@ const ClienteEdit = () => {
                         fono: '',
                         region: undefined,
                         comuna: undefined,
-                        ciudad: ''
+                        ciudad: '',
+                        correoelectronico: '',
+                        tipo: undefined
                     }}
                 >
                     {/* Campo de código (RUT) deshabilitado */}
@@ -292,6 +201,19 @@ const ClienteEdit = () => {
                     </Form.Item>
 
                     <Form.Item
+                        name="correoelectronico"
+                        label="Correo Electrónico"
+                        rules={[
+                            {
+                                type: 'email',
+                                message: 'Ingrese un correo electrónico válido',
+                            }
+                        ]}
+                    >
+                        <Input placeholder="ejemplo@correo.com" />
+                    </Form.Item>
+
+                    <Form.Item
                         name="region"
                         label="Región"
                     >
@@ -337,6 +259,18 @@ const ClienteEdit = () => {
                         label="Ciudad"
                     >
                         <Input placeholder="Ciudad" />
+                    </Form.Item>
+
+                    <Form.Item
+                        name="tipo"
+                        label="Tipo de Cliente"
+                    >
+                        <Select placeholder="Seleccione un tipo de cliente" allowClear>
+                            <Option value="Final">Final</Option>
+                            <Option value="Retail">Retail</Option>
+                            <Option value="Distribuidor">Distribuidor</Option>
+
+                        </Select>
                     </Form.Item>
 
                     <Form.Item>

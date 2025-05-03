@@ -1,110 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Form, Input, Button, Select, Typography, message, Card } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import clienteService from '../../services/clienteService';
+import { REGIONES, COMUNAS_POR_REGION } from "../../utils/ubicacion";
+import { formatRut, validarRut } from "../../utils/formatters";
 
 const { Title } = Typography;
 const { Option } = Select;
-
-// Mapeo de regiones
-const REGIONES = {
-    '1': 'Primera Región (de Tarapacá)',
-    '2': 'Segunda Región (de Antofagasta)',
-    '3': 'Tercera Región (de Atacama)',
-    '4': 'Cuarta Región (de Coquimbo)',
-    '5': 'Quinta Región (de Valparaíso)',
-    '6': 'Sexta Región (del Libertador B.O higgins)',
-    '7': 'Séptima Región (del Maule)',
-    '8': 'Octava Región (del Bío-Bío)',
-    '9': 'Novena Región (de la Araucanía)',
-    '10': 'Décima Región (de los Lagos)',
-    '11': 'Undécima Región (de Aisén del General Ca)',
-    '12': 'Duodécima Región (de Magallanes y de la)',
-    '13': 'Región Metropolitana (de Santiago)',
-    '14': 'Decimocuarta Región de los Rios',
-    '15': 'Decimoquinta Región de Arica y Parinacota'
-};
-
-// Datos estáticos de comunas por región
-const COMUNAS_POR_REGION = {
-    '13': [
-        { id: '13301', nombre: 'Santiago' },
-        { id: '13302', nombre: 'Providencia' },
-        { id: '13303', nombre: 'Las Condes' }
-    ],
-    '5': [
-        { id: '5101', nombre: 'Valparaíso' },
-        { id: '5102', nombre: 'Viña del Mar' },
-        { id: '5103', nombre: 'Quilpué' }
-    ],
-    '8': [
-        { id: '8101', nombre: 'Concepción' },
-        { id: '8102', nombre: 'Talcahuano' },
-        { id: '8103', nombre: 'Chiguayante' }
-    ]
-};
-
-// Función para validar y formatear RUT chileno
-const formatRut = (rut) => {
-    if (!rut) return '';
-
-    // Eliminar caracteres no numéricos
-    let valor = rut.replace(/[^0-9kK]/g, '');
-
-    // Obtener dígito verificador
-    let dv = valor.charAt(valor.length - 1);
-
-    // Obtener cuerpo del RUT
-    let rutCuerpo = valor.slice(0, -1);
-
-    // Formatear con puntos y guión
-    let rutFormateado = '';
-    for (let i = rutCuerpo.length - 1; i >= 0; i--) {
-        rutFormateado = rutCuerpo.charAt(i) + rutFormateado;
-        if ((rutCuerpo.length - i) % 3 === 0 && i !== 0) {
-            rutFormateado = '.' + rutFormateado;
-        }
-    }
-
-    return rutFormateado + '-' + dv;
-};
-
-// Función para calcular el dígito verificador
-const calcularDV = (rut) => {
-    let suma = 0;
-    let multiplo = 2;
-
-    for (let i = rut.length - 1; i >= 0; i--) {
-        suma += parseInt(rut.charAt(i)) * multiplo;
-        multiplo = multiplo < 7 ? multiplo + 1 : 2;
-    }
-
-    let dvCalculado = 11 - (suma % 11);
-
-    if (dvCalculado === 11) return '0';
-    if (dvCalculado === 10) return 'K';
-
-    return dvCalculado.toString();
-};
-
-// Función para validar un RUT completo
-const validarRut = (rut) => {
-    if (!rut) return false;
-
-    // Limpiar el RUT de cualquier formato
-    let valor = rut.replace(/\./g, '').replace(/-/g, '');
-
-    // Obtener dígito verificador ingresado
-    let dv = valor.charAt(valor.length - 1).toUpperCase();
-
-    // Obtener cuerpo del RUT
-    let rutCuerpo = valor.slice(0, -1);
-
-    // Calcular dígito verificador esperado
-    let dvEsperado = calcularDV(rutCuerpo);
-
-    return dv === dvEsperado;
-};
 
 const ClienteCreate = () => {
     const [form] = Form.useForm();
@@ -114,7 +16,7 @@ const ClienteCreate = () => {
     const [loadingComunas, setLoadingComunas] = useState(false);
 
     // Cargar comunas según la región seleccionada
-    const cargarComunas = (regionId) => {
+    const cargarComunas = useCallback((regionId) => {
         if (!regionId) {
             setComunas([]);
             return;
@@ -134,16 +36,16 @@ const ClienteCreate = () => {
         } finally {
             setLoadingComunas(false);
         }
-    };
+    }, []);
 
     // Manejar cambio de región
-    const handleRegionChange = (value) => {
+    const handleRegionChange = useCallback((value) => {
         form.setFieldsValue({ comuna: undefined });
         cargarComunas(value);
-    };
+    }, [form, cargarComunas]);
 
     // Preparar datos antes de enviar al servidor
-    const prepararDatosParaEnviar = (values) => {
+    const prepararDatosParaEnviar = useCallback((values) => {
         const datosPreparados = { ...values };
 
         // Formatear RUT (codaux) - guardar sin puntos ni guión, solo números
@@ -152,7 +54,7 @@ const ClienteCreate = () => {
         }
 
         return datosPreparados;
-    };
+    }, []);
 
     const onFinish = async (values) => {
         try {
@@ -165,8 +67,6 @@ const ClienteCreate = () => {
             }
 
             const datosPreparados = prepararDatosParaEnviar(values);
-            console.log("Datos a enviar:", datosPreparados);
-
             const response = await clienteService.createCliente(datosPreparados);
 
             if (response?.success) {
@@ -251,6 +151,19 @@ const ClienteCreate = () => {
                     </Form.Item>
 
                     <Form.Item
+                        name="correoelectronico"
+                        label="Correo Electrónico"
+                        rules={[
+                            {
+                                type: 'email',
+                                message: 'Ingrese un correo electrónico válido',
+                            }
+                        ]}
+                    >
+                        <Input placeholder="ejemplo@correo.com" />
+                    </Form.Item>
+
+                    <Form.Item
                         name="region"
                         label="Región"
                     >
@@ -293,6 +206,17 @@ const ClienteCreate = () => {
                         label="Ciudad"
                     >
                         <Input placeholder="Ciudad" />
+                    </Form.Item>
+
+                    <Form.Item
+                        name="tipo"
+                        label="Tipo de Cliente"
+                    >
+                        <Select placeholder="Seleccione un tipo de cliente">
+                            <Option value="Final">Final</Option>
+                            <Option value="Retail">Retail</Option>
+                            <Option value="Distribuidor">Distribuidor</Option>
+                        </Select>
                     </Form.Item>
 
                     <Form.Item>
